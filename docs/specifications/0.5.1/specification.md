@@ -1,344 +1,87 @@
-# AIP v0.5.1 — User Demonstration & Developer Experience
+# AIP v0.5.1 — Realistic Architecture Demo: Quarkus Super Heroes
 
 **Status:** Proposed  
-**Target release:** v0.5.1  
-**Baseline:** Published v0.5.0  
-**Theme:** Show, Don't Tell  
-**Priority:** User experience over implementation ceremony
+**Target:** `v0.5.1`  
+**Baseline:** Published `v0.5.0`  
+**Scope authority:** [ROADMAP.md — v0.5.1](../../../ROADMAP.md)
 
-## 1. Release Goal
+## 1. Release promise
 
-AIP v0.5.1 makes the existing Architecture Intelligence capabilities accessible through a compelling, reproducible demonstration.
+> A user and their coding agent can obtain and inspect architecture context for a concrete Quarkus development task without reconstructing that context themselves.
 
-The release must answer one question:
+The centerpiece of v0.5.1 is a **ready-to-run Quarkus Super Heroes demo**, based on the final v0.5.0 I5 dossier and qualified evidence. This is an experience/replay release, not a new Architecture Knowledge capability or a general UI project.
 
-**Can a new user understand what AIP does, experience its value, and explore the evidence behind its conclusions without first understanding its internal architecture?**
+The hero task is: **“Before changing the fight service, help me understand what it depends on, which interactions were observed, how its deployment is identified, and what evidence and limitations I should inspect.”**
 
-v0.5.0 established broader evidence-qualified Current State discovery. v0.5.1 turns that foundation into something users can experience.
+## 2. Baseline and constraints
 
-The release adds no new architecture intelligence dimension, Canonical Model family, or public MCP tool.
+- Reuse `docs/real-world-validation/v0.5.0/quarkus-super-heroes/` and final-candidate evidence under `docs/real-world-validation/v0.5.0/final-candidate/quarkus-super-heroes/`; do not rewrite the frozen dossier or its historical records.
+- Use the dossier's pinned upstream Quarkus Super Heroes commit `8ea03377bfe7a89c49e1ccc0e501bf5fafbc2cce`. Preserve the distinctions between upstream-supplied, upstream-derived, operator-configured, and independently observed evidence.
+- Reuse the four OpenAPI declarations, fight-service architecture manifest, identity bindings, offline namespaced Kubernetes evidence, and supported runtime observation path. The upstream-unmodified Kubernetes bundle remains a deliberate rejected/negative input, not a healthy demo source.
+- The services run in Docker Compose; the Kubernetes bundle is an **offline declared manifest**, not evidence that the Compose services are running in a cluster. WHERE something is does not establish HOW it interacts.
+- The final I5 qualification established **45/45 supported facts** (35 PROVIDES, 7 CALLS, 3 DEPLOYED_AS), zero incorrect supported facts. Of the seven CALLS, three exercised calls are CONFIRMED and four unexercised calls NOT_OBSERVED_IN_WINDOW. The three deployment bindings are RESOLVED_CONFIGURED. The demo may demonstrate these qualified outcomes but must get its displayed answers from the running AIP instance.
+- Unsupported gRPC, Kafka `fights`, and legacy `messaging.operation` must stay unsupported. Do not invent a Kafka Topic/Queue/Subscription claim or a dependency for a name-only deployment candidate.
+- Keep `examples/runtime-demo/` and its existing minimal demonstration intact.
+- No new Architecture Knowledge semantics, source families, public MCP tools, generic graph editor, or mandatory new UI.
 
-Its principal deliverable is a coherent demonstration covering dependency discovery, architecture drift, Kubernetes deployment identity, Pub/Sub semantics, evidence provenance, and explicit uncertainty.
+## 3. I1 — Ready-to-run Quarkus demonstration
 
-## 2. User Experience
+**Deliverable:** A documented, reproducible entry point under `examples/quarkus-super-heroes-demo/` (or an equally clear directory) that takes a new developer from checkout to a prepared AIP instance.
 
-### 2.1 Target audience
-
-The demonstration targets three audiences:
-
-- Software architects exploring the Current State of a distributed system.
-- Developers investigating dependencies and undocumented runtime behavior.
-- Developers using AI coding agents that need trustworthy architecture context.
-
-A user should not need to understand Neo4j, the internal Canonical Model, the qualification pipeline, or the source adapter architecture before experiencing AIP.
-
-### 2.2 Primary user journey
-
-The demonstration follows an architecture investigation rather than presenting a collection of API endpoints.
-
-The user starts with a question:
-
-**What does my order service actually depend on, and can I trust that information?**
-
-AIP presents its dependencies, their qualifications, and their evidence.
-
-The user discovers that:
-
-1. ProductService is declared and observed.
-2. LegacyPricingService is observed but undocumented.
-3. A declared messaging dependency was not observed in the selected window.
-4. Kubernetes evidence identifies a deployment workload.
-5. An alternative identity scenario produces a conflict that AIP refuses to resolve by guessing.
-6. Evidence can be inspected to understand why each conclusion was reached.
-
-A second journey demonstrates the distinction between Queue, Topic, and Subscription without conflating infrastructure and application relationships.
-
-The demonstration must make clear that AIP does not simply generate an architecture diagram. It produces architecture claims qualified by evidence.
-
-## 3. I1 — A Usable Demonstration
-
-**Goal:** Make it easy for a new user to run and explore AIP.
-
-### 3.1 One-command startup
-
-Provide a single, documented command that prepares and launches the demonstration.
-
-Target interaction:
+A convenience command such as:
 
 ```bash
-./demo/run.sh
+examples/quarkus-super-heroes-demo/run.sh
 ```
 
-The command should:
+must orchestrate the existing dossier setup rather than require users to manually repeat the I5 qualification runbook. It should check prerequisites, use pinned inputs, start the necessary services/AIP/Neo4j/collector, import the applicable declarations and offline Kubernetes source, exercise the recorded fight-service traffic, wait for readiness based on observable state, and print the local REST/MCP endpoints and next step. Provide a clean stop/reset command.
 
-- start the required services;
-- import the existing deterministic demonstration fixtures;
-- ingest the frozen runtime observations;
-- verify that the demonstration is ready;
-- print the local browser URL;
-- make cleanup straightforward.
+The demo must capture or expose its actual environment, observation window, snapshot identity, upstream commit, and AIP build/image identity. Two clean replays must produce equivalent semantic findings and qualification labels; dynamically generated snapshot/observation identifiers need not be byte-identical. Do not silently substitute the old synthetic `order-service` fixture for the real Quarkus system. No LLM key or live Kubernetes cluster is needed for the deterministic AIP preparation; building/pulling upstream images may require normal build network access.
 
-No LLM API key, external cloud account, Kubernetes cluster, or live broker is required.
+**Acceptance:** From a documented clean checkout, the prescribed command results in an inspectable `service:rest-fights` architecture context. Failures explain the prerequisite or step that failed rather than leaving partially prepared state unexplained.
 
-Reuse the v0.5.0 golden-path fixtures and existing runtime demonstration wherever possible. Do not introduce a second, independently maintained semantic fixture universe.
+## 4. I2 — Task-driven architecture exploration
 
-Existing demonstration and golden-path infrastructure may be reorganized or wrapped if that improves usability.
+**Deliverable:** A short, user-facing walkthrough, grounded in actual REST and MCP answers, starting with the development task rather than an endpoint tour.
 
-### 3.2 Interactive architecture exploration
+Walkthrough sequence:
 
-Provide a browser-based demonstration.
+1. **Before changing rest-fights, what are its direct dependencies?** Show the seven declared CALLS and distinguish the three runtime-CONFIRMED calls from the four NOT_OBSERVED_IN_WINDOW calls. The latter does not imply dead or unused code.
+2. **Which evidence supports those claims?** Resolve the returned evidence references within the same snapshot, showing declaration sources and the selected observation window.
+3. **Where is the fight service deployed?** Show its RESOLVED_CONFIGURED DEPLOYED_AS binding, configured identity evidence, and the declared-manifest/offline limitation. Do not claim live cluster deployment or co-location-based interaction.
+4. **What remains uncertain before I edit the service?** Make gRPC and Kafka `fights` support boundaries explicit; note intentionally unresolved/unmapped deployment identities without guessing.
+5. **What follows from this?** Let a developer inspect `rest-heroes`, `rest-villains`, or `rest-narration` as natural follow-ups while distinguishing AIP-established architecture facts from the agent's suggested investigation steps.
 
-The preferred solution is to extend AIP's existing lightweight web UI rather than build a new frontend framework or separate application.
+Use shipped REST routes and the **standard negotiated MCP** transport. The public tool surface remains exactly `get_service_dependencies`, `get_architecture_drift`, and `get_evidence`. Do not use the retired direct MCP envelope. Deployment answers can be obtained via the existing REST deployment endpoint or the existing supported dependency answer as appropriate.
 
-The demonstration should expose four connected perspectives:
+The walkthrough should show the meaningful output and provenance rather than dumping unannotated JSON. Lightweight formatting/helpers are fine, but they must not implement independent semantics or fake answers.
 
-**Architecture Overview**
+**Acceptance:** A reader can perform the end-to-end fight-service investigation and follow every supported conclusion to its evidence, while seeing the unsupported/unresolved limits.
 
-Display the services and their relevant dependencies in a readable architecture graph or equivalent interactive visualization.
+## 5. I3 — Real coding-agent walkthrough and discovery
 
-Support selection of a service and navigation to its details.
+**Deliverable:** One reproducible example conversation with an existing coding-agent client (Codex CLI or Claude Code) connected to the running Quarkus AIP demo.
 
-Use visually distinguishable categories for declared, observed, and deployment relationships. Do not collapse these into generic edges.
+Suggested prompt:
 
-**Service Detail**
+> Before changing `rest-fights`, use AIP to establish its direct dependencies, declared-versus-observed qualification, and deployment bindings. Resolve the evidence behind relevant findings using the same snapshot. Tell me which architecture facts are supported and what I still need to investigate. Do not infer unsupported Kafka or gRPC interactions or guess unresolved identity.
 
-For a selected service, display:
+Show real autonomous MCP tool calls and a representative answer that separates source-grounded findings from recommendations for additional inspection. The agent must not create or qualify canonical facts. Supply exact client setup and an explanation that the AIP demo itself needs no model API key, while the chosen agent client may require its own account.
 
-- direct dependencies;
-- declared-versus-observed qualification;
-- observation context;
-- deployment associations;
-- unresolved cases and limitations.
+A short real capture or recording of this **Quarkus-specific** workflow is desirable, but do not make media production the critical path to a runnable demo.
 
-Show the actual supported claims, not a separately reconstructed architecture model.
+**Acceptance:** A documented client completes the conversation with real AIP tool results and faithful evidence/limitation handling.
 
-**Evidence Inspector**
+## 6. I4 — Entry points and lightweight release
 
-Selecting a claim reveals its evidence and provenance.
+Update the README with an obvious **Quarkus Super Heroes: understand the fight service before changing it** entry point. Link the quick-start, guided questions, and agent walkthrough. Retain a separate link to the minimal synthetic demo; the two demonstrations have different purposes.
 
-Show the source type, source locator, relevant evidence references, and observation context where applicable.
+Provide one concise demo README with prerequisites, run, inspect, agent connection, troubleshooting, and teardown. Correct stale transport instructions encountered along this path.
 
-Evidence reads must remain bound to the originating snapshot.
+Run ordinary CI and targeted integration/contract tests plus a clean demo smoke run against the intended artifact. Verify preserved claims, provenance continuity, absence of invented unsupported facts, and no write path through the three MCP tools. Avoid a new qualification framework, duplicate dossiers, excessive completion records, or release-ceremony slices. Publication is an owner decision.
 
-A user should be able to follow a supported claim to the evidence behind it without manually copying identifiers into another tool.
+## 7. Definition of done
 
-**Uncertainty and Conflicts**
+A new developer can run the documented Quarkus Super Heroes demonstration, ask what they need to know before changing `rest-fights`, inspect dependencies, runtime qualifications, deployment identity and evidence, follow up through a real coding agent, and see unsupported/unresolved boundaries without reconstructing the architecture from source files themselves.
 
-Provide clear presentations for:
-
-- `OBSERVED_ONLY`;
-- `NOT_OBSERVED_IN_WINDOW`;
-- `CONFLICT`;
-- `AMBIGUOUS`;
-- `UNRESOLVED`;
-- `UNSUPPORTED`, where applicable.
-
-These must retain their distinct meanings.
-
-An unresolved identity must never silently become a guessed relationship.
-
-### 3.3 Guided demonstration scenarios
-
-Provide three selectable demonstration scenarios.
-
-| Scenario | What the user learns |
-|---|---|
-| Architecture Drift | Declared and observed architecture can disagree. |
-| Deployment Identity | Kubernetes evidence can establish deployment identity, but not application dependencies. |
-| Messaging Semantics | Topics, Subscriptions, and Queues have distinct meanings. |
-
-The deployment demonstration should explicitly include an identity conflict.
-
-Users should be able to switch scenarios without editing YAML files or manually invoking import endpoints.
-
-Each scenario has a short explanation of what to inspect and why the result matters.
-
-### 3.4 I1 acceptance
-
-I1 is complete when:
-
-- a new user can start the demo from a clean checkout using the documented command;
-- the browser presents the supported architecture claims;
-- clicking a claim exposes its evidence;
-- all three scenarios are accessible;
-- limitations and unresolved cases remain visible;
-- the demonstration runs entirely locally;
-- existing architecture semantics are unchanged.
-
-The result must be tested against real AIP API responses. Hardcoded UI conclusions or fabricated evidence are prohibited.
-
-## 4. I2 — Demonstrate AIP as Architecture Context for Agents
-
-**Goal:** Demonstrate how a coding agent benefits from AIP without becoming an architecture authority.
-
-### 4.1 Agent workflow
-
-Provide a working example using one mainstream MCP-capable coding agent.
-
-Codex CLI or Claude Code is sufficient as the primary demonstration client.
-
-The demo should show an agent answering:
-
-> Investigate OrderService using AIP. Identify its direct dependencies, explain any architecture drift, resolve the evidence behind your findings, and distinguish supported conclusions from limitations. Do not infer relationships that AIP cannot establish.
-
-The agent should autonomously use the existing three read-only MCP tools:
-
-- `get_service_dependencies`
-- `get_architecture_drift`
-- `get_evidence`
-
-The workflow must use standard negotiated MCP as shipped in v0.5.0, not the retired direct envelope.
-
-### 4.2 Demonstrate the value, not the protocol
-
-The example should emphasize the difference between a plausible architecture explanation and an evidence-qualified answer.
-
-The agent's response should clearly distinguish:
-
-- what is declared;
-- what is observed;
-- what is confirmed;
-- what is not observed in the selected window;
-- what AIP cannot establish;
-- which evidence supports each statement.
-
-An agent must not transform an AIP limitation into a confident architecture assertion.
-
-### 4.3 Capture a short walkthrough
-
-Produce a short demonstration video or animated walkthrough showing the actual agent interaction.
-
-Suggested sequence:
-
-1. Developer asks an architecture question.
-2. Agent invokes AIP.
-3. AIP returns qualified findings.
-4. Agent resolves the supporting evidence.
-5. Developer receives an actionable, evidence-backed explanation.
-
-Target duration: approximately 90–120 seconds.
-
-Record actual tool interactions. Do not present simulated output as a live demonstration.
-
-### 4.4 I2 acceptance
-
-- At least one supported coding-agent client completes the workflow.
-- MCP tool discovery and calls work against the v0.5.1 demonstration.
-- Evidence resolution remains snapshot-consistent.
-- The agent communicates unresolved and unsupported findings accurately.
-- The complete workflow is reproducible through documented instructions.
-
-Additional clients may be checked opportunistically, but recreating a comprehensive four-client qualification matrix is not a release requirement.
-
-## 5. I3 — Documentation, Presentation & Release
-
-**Goal:** Make the demonstration the primary entry point to the project.
-
-### 5.1 README redesign
-
-The README should lead with what a user can accomplish, not an explanation of AIP's internal components.
-
-Suggested opening:
-
-> **Understand your architecture from evidence, not assumptions.**
->
-> AIP reconciles declared APIs, runtime observations, messaging contracts, and deployment information into evidence-qualified architecture context for developers and coding agents.
-
-Immediately follow this with:
-
-- a screenshot or short animation of the demonstration;
-- the one-command Quick Start;
-- three representative architecture questions;
-- a link to the guided walkthrough.
-
-Update outdated examples and transport references to match v0.5.0's actual public contract.
-
-The README should remain concise. Detailed internals belong in the existing technical documentation.
-
-### 5.2 Demo documentation
-
-Provide one focused walkthrough:
-
-`demo/README.md`
-
-It should explain how to start, explore, connect an agent, and stop the demonstration.
-
-Document the expected findings, particularly LegacyPricingService, deployment identity conflict, and Pub/Sub distinctions.
-
-Describe limitations explicitly without overwhelming the introductory experience.
-
-### 5.3 Presentation assets
-
-Create reusable material for sharing AIP:
-
-- one overview screenshot showing the interactive architecture;
-- one screenshot showing a finding and its evidence;
-- one short video demonstrating the end-to-end experience.
-
-These should be suitable for the GitHub README, external project discussions, and a LinkedIn demonstration.
-
-The existing video assets and rendering infrastructure should be reused where practical.
-
-### 5.4 Release
-
-Use normal CI, integration tests, deterministic evaluation, and a clean demonstration run.
-
-Release qualification is limited to verifying that the documented experience works against the intended v0.5.1 artifact and that existing architecture semantics remain intact.
-
-No new evaluation methodology, extensive completion records, or multi-stage release qualification framework is required.
-
-Publication remains an explicit owner decision.
-
-## 6. Non-Goals
-
-The following are excluded from v0.5.1:
-
-- new discovery source families;
-- gRPC/protobuf support;
-- live Kubernetes access;
-- live broker discovery;
-- locality-qualified architecture claims;
-- Architecture Intent and Assessment;
-- additional MCP tools;
-- LLM-based architecture inference;
-- a general-purpose graph editor;
-- user accounts, authentication, or hosted SaaS deployment;
-- a comprehensive frontend redesign;
-- mandatory GT/Moldable Development integration;
-- new release governance infrastructure.
-
-AIP's deterministic, evidence-qualified semantic core remains the authority.
-
-The demonstration must not introduce an alternative architecture reasoning engine in the presentation layer.
-
-## 7. Delivery Plan
-
-Three implementation increments are sufficient.
-
-| Increment | Deliverable | Demonstration value |
-|---|---|---|
-| I1 | One-command demo and interactive architecture exploration | Users can experience AIP directly. |
-| I2 | Working coding-agent demonstration | Developers see how AIP improves agent architecture context. |
-| I3 | README, walkthrough, presentation assets, release | New users can discover and reproduce the experience. |
-
-Each increment should produce something that can actually be demonstrated.
-
-Prefer a small number of coherent PRs over artificially subdividing work into ceremonial slices.
-
-## 8. Definition of Done
-
-v0.5.1 is complete when a new user can:
-
-1. Clone AIP and launch the demonstration with one command.
-2. See an architecture overview with meaningful relationship distinctions.
-3. Investigate an undocumented runtime dependency.
-4. Inspect the evidence supporting a claim.
-5. Understand why AIP refuses to resolve a conflicting deployment identity.
-6. Explore the existing messaging semantics.
-7. Connect a coding agent and receive an evidence-backed architecture explanation.
-
-All seven interactions must work against actual AIP behavior.
-
-The fundamental release criterion is simple:
-
-**AIP's value should be visible through using the product, not through reading its specification.**
+The pre-existing minimal demo still works. No new architecture-answer semantics or MCP tools have been introduced.
