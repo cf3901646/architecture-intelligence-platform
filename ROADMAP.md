@@ -307,19 +307,25 @@ gRPC/protobuf, Kafka Connect, other new source families, explicit Intent, Curren
 historical trajectories, and distributed local-assessor deployment are outside v0.5. I4 may end in
 `DEFER` without blocking the remaining qualified release.
 
-## v0.5.1 — Realistic Architecture Demo (proposed)
+## v0.5.1 — Realistic Architecture Demo (planned)
 
-**Goal: Provide a reproducible, evidence-rich demo based on the v0.5.0-qualified Quarkus Super Heroes system.**
+**Goal: Demonstrate how users and coding agents obtain architecture knowledge needed to work on a
+realistic multi-service system.**
 
-- reuse the final I5 Quarkus dossier and qualified evidence;
-- add deterministic demo preparation/replay over existing REST and MCP surfaces;
-- preserve unsupported/unresolved boundaries;
+- provide a ready-to-run Quarkus Super Heroes demo using the final v0.5.0 I5 dossier and qualified evidence;
+- demonstrate task-driven questions and follow-up exploration, starting with understanding the fight
+  service before changing it;
+- make dependencies, runtime qualification, deployment bindings, and supporting evidence accessible
+  through existing REST and MCP capabilities;
+- provide deterministic demo preparation/replay and example conversations using an existing agent client;
+- preserve unsupported/unresolved boundaries and show limitations in answers;
 - keep the existing minimal demo;
 - no new Architecture Knowledge semantics, source families, or MCP tools.
 
 Exit capability:
 
-> **AIP can demonstrate its existing v0.5 Architecture Knowledge over a realistic multi-service system.**
+> **A user and their coding agent can obtain and inspect architecture context for a concrete Quarkus
+> development task without reconstructing that context themselves.**
 
 ## v0.6 — Locality-Aware Current State (planned)
 
