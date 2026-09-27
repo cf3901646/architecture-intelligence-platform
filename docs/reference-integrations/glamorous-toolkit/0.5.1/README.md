@@ -2,7 +2,14 @@
 
 **AIP release:** v0.5.1 (public schema `"0.5"`)  
 **GT baseline:** fresh official [GT 1.1.601](https://github.com/feenkcom/gtoolkit/releases/tag/v1.1.601), bundling gt4llm v0.7.304  
-**Status:** integration workspace; preserve the separately [validated v0.4.2 PoCs](../0.4.2/README.md) as historical evidence. Do not treat their PASS results as a new v0.5.1 agent/client requalification.
+**Status:** runbook and two-class GT source export supplied; end-to-end results must be recorded after execution. Historical v0.4.2 PoC PASS results do not qualify the v0.5.1 integration.
+
+## Deliverables
+
+- [Step-by-step runbook, v1.8](AIP_GT_Quarkus_Demo_Runbook_v1_8.md): start with official GT 1.1.601, replay AIP v0.5.1, verify MCP and snapshot-bound evidence, inspect the Quarkus object, and optionally open a GT chat.
+- [AIP-GToolkit-Quarkus.st](AIP-GToolkit-Quarkus.st): user-exported Smalltalk package containing `GtAipMcpClient`, `GtAipArchitectureAnswer` and four Inspector views. This is an alternative to entering the two classes method-by-method in runbook §6; inspect before loading and do not overwrite bundled gt4llm classes.
+
+Both files are reference integration artifacts, not a claim of an independently re-executed acceptance gate. The archived [0.4.2 PoCs](../0.4.2/README.md) remain separate.
 
 ## Starting point
 
@@ -10,20 +17,17 @@ The reproducible evidence source is the published [Quarkus Super Heroes replay](
 
 Query `service:rest-fights` with environment `quarkus-i5` and window `2026-09-25T13:06:47Z` to `2026-09-25T13:06:54Z`. The clean replay contains seven operation-level HTTP claims (three confirmed, four not observed in this window), a configured `DEPLOYED_AS`, and an operator-authored AsyncAPI `PUBLISHES_TO` Topic `fights` claim with unresolved subscription identity. Preserve the complete answer, limitations, both evidence-ref roles and its returned snapshot.
 
-## Reuse rather than rebuild
+## Implementation approach
 
-1. Retain the existing local `GtAipMcpClient` + `GtAipArchitectureAnswer` query/Inspector layer after its independent connection checks.
-2. Selectively reuse the historical [PoC 2 evidence models](../0.4.2/poc-2-evidence-exploration.md), [PoC 3 agentic investigation](../0.4.2/poc-3-agentic-architecture-exploration.md), and [PoC 4 bounded ephemeral micro-tools](../0.4.2/poc-4-dynamic-moldable-tools.md). The historical [Architecture Explorer installer](../0.4.2/architecture-explorer-install.st) expects AIP-specific classes to exist; it is not a standalone loader.
-3. In the new launcher replace `GtAipMcpStructuredFunctionTool toolsForClient: mcpClient` with upstream `mcpClient llmFunctionTools`. The local adapter is no longer required because [gt4llm PR #12](https://github.com/feenkcom/gt4llm/pull/12) was merged and is included in GT 1.1.601. Do not override bundled gt4llm classes.
-4. Replace the old OrderService standing context and hardcoded ephemeral rows with Quarkus-specific questions. Preserve the original grounded, snapshot-bound evidence lookup and developer-controlled promotion boundaries.
-5. Support `DIRECT_DEPENDENCY` and `DEPLOYED_AS` as distinct claim variants. Never infer deployment identity from matching names, Kafka Subscription identity from consumer groups, or an unused operation from `NOT_OBSERVED_IN_WINDOW`.
+Use the official GT 1.1.601 image and bundled upstream gt4llm (including feenkcom/gt4llm PR #12). The two AIP-specific classes are provided in the source export and documented method-by-method in the runbook. Retain each full `ArchitectureAnswer`, claim evidence and destination-resolution evidence in separate roles, and resolve references using the answer's own snapshot.
+
+The agent chat is optional and uses upstream `mcpClient llmFunctionTools` together with GT's existing object-exploration tools. No historical `GtAipMcpStructuredFunctionTool` adapter, bulk-import of the GT 1.1.590 image or ephemeral micro-tool migration is needed.
 
 ## Verification gates
 
-- **MCP:** actual GT client negotiation succeeds; the public three tools and complete nested input schemas are visible; `structuredContent` is retained.
-- **Inspectors:** nine claims are retained (7 HTTP / 1 messaging / 1 deployment), `PARTIAL` and `UNRESOLVED_IDENTITY` remain visible; evidence is resolved at the originating snapshot.
-- **Agent-first:** agent chooses MCP tools and chains evidence without inventing explanations or supported facts.
-- **Object-first:** developer selects the MCP-backed GT object, stores it in the existing chat object storage and uses `GtLTools gtObjectsExecution` for navigation.
-- **Ephemeral:** an agent can instantiate/populate the existing `GtAipEphemeralMicroTool` with actual Quarkus claim lineage, but does not compile methods or permanently change classes.
+- **MCP:** initialize and discover the three tools with full nested input schemas and `structuredContent`.
+- **Object/Inspectors:** preserve all nine claims (seven HTTP / one messaging / one deployment), `PARTIAL` and `UNRESOLVED_IDENTITY`; four working views.
+- **Evidence:** resolve at the originating snapshot with no missing refs; do not infer absent activity, deployment identity or consumer identity from names.
+- **Optional agent:** demonstrate the chat/object workflow separately if a model provider is configured.
 
-Record each v0.5.1 gate only after running it in this image. Add any finished source export, runbook or test evidence **here**, not under `0.4.2/`.
+Record observed v0.5.1 gate results only after running them in the target GT image.
