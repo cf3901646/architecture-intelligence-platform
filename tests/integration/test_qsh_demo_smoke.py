@@ -23,6 +23,7 @@ import importlib.util
 import json
 import os
 import shutil
+import signal
 import socket
 import subprocess
 import urllib.request
@@ -98,14 +99,23 @@ def _project_containers() -> str:
 
 
 def _run(*args: str, timeout: int) -> subprocess.CompletedProcess[str]:
-    return subprocess.run(
+    """Runs run.sh in its own process group. On timeout the whole group is killed, not just bash,
+    so no orphaned `docker compose` child can keep creating containers after the teardown."""
+    process = subprocess.Popen(
         [BASH, str(RUN_SH), *args],
         cwd=REPO_ROOT,
-        capture_output=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
         text=True,
-        timeout=timeout,
-        check=False,
+        start_new_session=True,
     )
+    try:
+        stdout, stderr = process.communicate(timeout=timeout)
+    except subprocess.TimeoutExpired:
+        os.killpg(process.pid, signal.SIGKILL)
+        process.communicate()
+        raise
+    return subprocess.CompletedProcess(process.args, process.returncode, stdout, stderr)
 
 
 def _mcp(method: str, params: dict, request_id: int) -> dict:
@@ -132,10 +142,10 @@ def test_one_command_demo_answers_and_drills_down_at_one_snapshot():
         pytest.skip("port 8000 or 4318 is in use; the demo needs both")
 
     check_ready = _check_ready()
-    started = False
+    # The guard above proved the project did not exist, so anything run.sh creates from here on
+    # is this test's own: tear it down on every exit path, including a run.sh timeout.
     try:
         run = _run(timeout=900)
-        started = True
         assert run.returncode == 0, f"run.sh failed:\n{run.stdout}\n{run.stderr}"
         assert "demo is ready" in run.stdout
 
@@ -170,9 +180,8 @@ def test_one_command_demo_answers_and_drills_down_at_one_snapshot():
         resolved = {record["id"] for record in evidence["data"]["records"]}
         assert resolved == set(answer["evidence_refs"])
     finally:
-        if started:
-            down = _run("--down", timeout=300)
-            assert down.returncode == 0, f"run.sh --down failed:\n{down.stdout}\n{down.stderr}"
+        down = _run("--down", timeout=300)
+        assert down.returncode == 0, f"run.sh --down failed:\n{down.stdout}\n{down.stderr}"
 
     assert _project_containers() == ""
     assert not RUN_DIR.exists()
