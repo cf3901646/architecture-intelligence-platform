@@ -17,7 +17,6 @@ import json
 import sys
 import urllib.parse
 import urllib.request
-from collections import Counter
 
 AIP_URL = "http://localhost:8000"
 SERVICE_ID = "service:rest-fights"
@@ -45,7 +44,16 @@ EXPECTED_RUNS = {
     },
     "qsh-k8s-namespaced": {"envelope.yaml": ("ACCEPTED_WITH_LIMITATIONS", set())},
 }
-EXPECTED_CALLS = Counter({"CONFIRMED": 3, "NOT_OBSERVED_IN_WINDOW": 4})
+# The seven per-operation CALLS of the frozen v0.5.0 answer: operation -> qualification.
+EXPECTED_CALLS = {
+    "operation:service:rest-heroes:GET:/api/heroes/hello": "NOT_OBSERVED_IN_WINDOW",
+    "operation:service:rest-heroes:GET:/api/heroes/random": "CONFIRMED",
+    "operation:service:rest-narration:GET:/api/narration/hello": "NOT_OBSERVED_IN_WINDOW",
+    "operation:service:rest-narration:POST:/api/narration": "CONFIRMED",
+    "operation:service:rest-narration:POST:/api/narration/image": "NOT_OBSERVED_IN_WINDOW",
+    "operation:service:rest-villains:GET:/api/villains/hello": "NOT_OBSERVED_IN_WINDOW",
+    "operation:service:rest-villains:GET:/api/villains/random": "CONFIRMED",
+}
 # The overlay's answer shape, recorded on the first real run (spec §4 step 5) and consistent with
 # the v0.5.0 I4 rules: the declared Topic has no evidenced Subscription, so the claim keeps the Topic
 # as its direct target, and the whole answer is PARTIAL with one UNRESOLVED_IDENTITY limitation.
@@ -114,9 +122,17 @@ def check_answer(answer: dict) -> list[str]:
     names = {c["subject"]["name"] for c in claims}
     if names != {SERVICE_NAME}:
         problems.append(f"rest-fights display names {sorted(names)}, expected {SERVICE_NAME!r}")
-    calls = Counter(c.get("qualification") for c in claims if relation(c) == "CALLS")
-    if calls != EXPECTED_CALLS:
-        problems.append(f"CALLS qualifications {dict(calls)}, expected {dict(EXPECTED_CALLS)}")
+    call_claims = [c for c in claims if relation(c) == "CALLS"]
+    calls = {c["delivery"]["via"]["id"]: c.get("qualification") for c in call_claims}
+    if len(call_claims) != len(calls) or calls != EXPECTED_CALLS:
+        for operation in sorted(set(calls) | set(EXPECTED_CALLS)):
+            if calls.get(operation) != EXPECTED_CALLS.get(operation):
+                problems.append(
+                    f"CALLS {operation}: {calls.get(operation)}, "
+                    f"expected {EXPECTED_CALLS.get(operation)}"
+                )
+        if len(call_claims) != len(calls):
+            problems.append(f"{len(call_claims)} CALLS claims for {len(calls)} operations")
 
     deployed = [c for c in claims if c["predicate"] == "DEPLOYED_AS"]
     if [c.get("resolution_method") for c in deployed] != ["RESOLVED_CONFIGURED"]:

@@ -21,7 +21,7 @@ The script starts AIP, Neo4j and an OpenTelemetry Collector, then:
    bindings, the offline Kubernetes manifest and the configured Service-to-Workload mapping;
 2. imports an operator-authored AsyncAPI overlay for Kafka `fights` (see [PROVENANCE.md](PROVENANCE.md));
 3. replays a timestamp-frozen OpenTelemetry window (`quarkus-i5`, `2026-09-25T13:06:47Z` to
-   `13:06:54Z`) once. Nothing keeps ingesting afterwards;
+   `13:06:54Z`) once, then stops the Collector, so nothing can ingest afterwards;
 4. checks the real `rest-fights` answer against the frozen evidence and stops if it differs;
 5. prints the MCP URL and a ready-to-copy agent prompt, also saved in `.aip-qsh-demo/prompt.txt` at the repository root.
 

@@ -84,6 +84,10 @@ done
 [[ -n "$current" && "$current" != "$before" && "$current" == "$last" ]] \
   || fail "the replayed observations were not ingested within 90s"
 
+# Enforce "nothing is ingesting any more": a later OTLP post would change the graph snapshot and
+# stale the evidence references of answers already given. AIP and Neo4j stay up for exploration.
+compose stop otel-collector
+
 echo "==> Checking the rest-fights answer against the frozen evidence"
 compose exec -T architecture-intelligence python qsh/check_ready.py <"$RUN_DIR/import.json" \
   >"$RUN_DIR/dependencies.json" || { cat "$RUN_DIR/dependencies.json" >&2; exit 1; }
