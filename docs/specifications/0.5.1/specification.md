@@ -21,6 +21,7 @@ The feature already exists at the pinned upstream revision (`rest-fights` → `P
 - No new Architecture Knowledge semantics, source families or MCP tools. The tools remain exactly `get_service_dependencies`, `get_architecture_drift` and `get_evidence`, over standard negotiated MCP. Keep `examples/runtime-demo/` unchanged.
 - The v0.5.0 `rest-fights` dependency answer has `limitations: []`. That does not mean the application's dependencies are completely known. The gRPC `grpc-locations` call is **dossier context**, never an AIP claim or AIP limitation, and is labelled as such.
 - **Messaging overlay.** QSH ships no AsyncAPI, so the dossier correctly records Kafka `fights` as unsupported. The demo adds a small, disclosed **operator-authored** AsyncAPI overlay (§4). A `fights` Topic may exist only because of that overlay, and it is never presented as upstream-supplied or runtime-confirmed evidence. Under the I4 rules, the accepted overlay provides declaration evidence for `PUBLISHES_TO` `Topic:fights`; it does not provide upstream provenance, a confirmed publication or a resolved Subscription. Kafka *runtime observation* stays unsupported (legacy `messaging.operation` key), and a consumer group is never a Subscription.
+- **No increment specs.** Each increment is implemented against its section in this document, with its plan in the PR description.
 
 ## 3. Why Quarkus Super Heroes
 
