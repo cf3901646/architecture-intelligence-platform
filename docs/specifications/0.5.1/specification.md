@@ -19,7 +19,7 @@ The feature already exists at the pinned upstream revision (`rest-fights` → `P
 
 - Reuse the frozen v0.5.0 I5 dossier (`docs/real-world-validation/v0.5.0/quarkus-super-heroes/`, upstream pin `8ea03377bfe7a89c49e1ccc0e501bf5fafbc2cce`) as input and provenance, without modifying it. Do not start the live Quarkus stack.
 - No new Architecture Knowledge semantics, source families or MCP tools. The tools remain exactly `get_service_dependencies`, `get_architecture_drift` and `get_evidence`, over standard negotiated MCP. Keep `examples/runtime-demo/` unchanged.
-- The v0.5.0 `rest-fights` dependency answer has `limitations: []`. That does not mean the application's dependencies are completely known. The gRPC `grpc-locations` call is **dossier context**, never an AIP claim or AIP limitation, and is labelled as such.
+- The frozen v0.5.0 `rest-fights` dependency answer has `limitations: []`. With the overlay (§4), the demo's answer is `PARTIAL` with one `UNRESOLVED_IDENTITY` limitation on the `fights` Topic claim. Neither means the application's dependencies are completely known. The gRPC `grpc-locations` call is **dossier context**, never an AIP claim or AIP limitation, and is labelled as such.
 - **Messaging overlay.** QSH ships no AsyncAPI, so the dossier correctly records Kafka `fights` as unsupported. The demo adds a small, disclosed **operator-authored** AsyncAPI overlay (§4). A `fights` Topic may exist only because of that overlay, and it is never presented as upstream-supplied or runtime-confirmed evidence. Under the I4 rules, the accepted overlay provides declaration evidence for `PUBLISHES_TO` `Topic:fights`; it does not provide upstream provenance, a confirmed publication or a resolved Subscription. Kafka *runtime observation* stays unsupported (legacy `messaging.operation` key), and a consumer group is never a Subscription.
 - **No increment specs.** Each increment is implemented against its section in this document, with its plan in the PR description.
 
@@ -61,13 +61,13 @@ The walkthrough follows the task. Each answer comes from a live AIP call, and th
 
 | # | Question | Must show | Must not claim |
 |---|---|---|---|
-| Q1 | What does `rest-fights` depend on? | The seven `CALLS`, grouped by target **and operation** | That `limitations: []` means complete coverage |
+| Q1 | What does `rest-fights` depend on? | The seven `CALLS`, grouped by target **and operation** | That the limitations list covers every unknown dependency (the gRPC call is absent from it) |
 | Q2 | What actually ran? | Three `CONFIRMED` and four `NOT_OBSERVED_IN_WINDOW` claims, plus the window | That a call that was not observed is unused |
 | Q3 | Why do you believe it calls `GET /api/heroes/random`? | Declared and observed evidence, resolved at the same snapshot | Evidence from another snapshot |
 | Q4 | Where does it run? | `RESOLVED_CONFIGURED` through the configured mapping, taken from the MCP dependencies answer | That deployment creates dependencies, or that it is live in a cluster |
 | Q5 | And `rest-narration`? There is a Deployment with the same name. | No qualified deployment resolution: a same-name Deployment alone establishes neither a resolution nor an explicit `UNRESOLVED` result | A resolution by name, or an outcome label AIP did not return |
 | Q6 | What is declared but was not exercised? | The drift answer, which includes `POST /api/narration/image` | Undeclared traffic, or that the image feature is missing |
-| Q7 | Does it publish events, and who consumes them? | `PUBLISHES_TO` `Topic:fights`, declared by the operator overlay and not confirmed at runtime. The overlay declares `event-statistics` as a consumer, but without a Subscription identity AIP omits that side (`SUBSCRIPTION_IDENTITY_MISSING` in the import report), so AIP names no consumer. | A `CONFIRMED` publish, or `event-statistics` as a resolved Subscription or AIP-established consumer |
+| Q7 | Does it publish events, and who consumes them? | `PUBLISHES_TO` `Topic:fights`, declared by the operator overlay and not confirmed at runtime. The overlay declares `event-statistics` as a consumer, but without a Subscription identity AIP omits that side and names no consumer: the answer is `PARTIAL` with an `UNRESOLVED_IDENTITY` limitation on that claim (`SUBSCRIPTION_IDENTITY_MISSING` appears in the import report). | A `CONFIRMED` publish, or `event-statistics` as a resolved Subscription or AIP-established consumer |
 | Q8 | What should I watch out for before changing image narration? | The image call is declared but was not exercised in the window; the narration deployment is unresolved; the gRPC `locations` call is dossier context | That the change is safe, or that the image path is unused |
 
 **Agent conversation.** Record one real conversation with Codex CLI or Claude Code, using the printed prompt. Check each answer against three things:
