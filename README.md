@@ -17,7 +17,7 @@ It reconciles declared API contracts with observed runtime behavior so an agent 
 Every answer is snapshot-bound and traceable to evidence. The agent-facing tools are read-only.
 Four real coding-agent clients were qualified end to end against `v0.4.2` — see the
 [`v0.4.2` compatibility matrix](docs/release-validation/v0.4.2-client-qualification.md). That
-qualification has not been repeated for `v0.5.0`.
+qualification has not been repeated since.
 
 **[Run the 5-Minute Demo](#see-it-in-five-minutes) · [Realistic Demo: Quarkus Super Heroes](#quarkus-super-heroes-understand-the-fight-service-before-changing-it) · [MCP Tools](#mcp-tools) · [How It Works](#how-aip-works)**
 
@@ -175,7 +175,7 @@ examples below — configuration syntax is verified against each client's curren
 
 **Qualified client/platform combinations are listed in the
 [v0.4.2 compatibility matrix](docs/release-validation/v0.4.2-client-qualification.md). They were
-qualified against `v0.4.2` and have not been re-qualified for `v0.5.0`. Other combinations are
+qualified against `v0.4.2` and have not been re-qualified since. Other combinations are
 unverified unless listed.**
 
 ### Codex CLI

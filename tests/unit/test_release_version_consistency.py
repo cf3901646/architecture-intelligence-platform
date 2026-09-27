@@ -23,7 +23,7 @@ from app.version import package_version
 from evaluation.architecture_answers.runner import _build_producer
 
 _REPO_ROOT = Path(__file__).resolve().parent.parent.parent
-_RELEASE_VERSION = "0.5.0"
+_RELEASE_VERSION = "0.5.1"
 
 
 def _uv_lock_root_project_version() -> str:
