@@ -10,10 +10,12 @@ re-qualification of the [v0.4.2 client matrix](../../docs/release-validation/v0.
 | Recorded | 2026-09-27 |
 | Client | Claude Code 2.1.283, model `claude-opus-5-5` |
 | AIP | built from `ee6270e` by `run.sh`; snapshot `aip:snapshot:v1:dc21e13dcf235b7526433318104531fc1edd944359a6a12b05d4843e4f4120fc` |
-| Tools available | only the three AIP MCP tools; no file, shell or web tools, run from an empty directory |
+| Tools available | only the three AIP MCP tools; no file, shell or web tools; run from a new empty directory |
 
 ```bash
-claude -p "$(cat .aip-qsh-demo/prompt.txt)" --setting-sources project --strict-mcp-config \
+REPO=/path/to/architecture-intelligence-platform   # where run.sh wrote .aip-qsh-demo/prompt.txt
+cd "$(mktemp -d)"                                   # an empty directory: no repository files
+claude -p "$(cat "$REPO/.aip-qsh-demo/prompt.txt")" --setting-sources project --strict-mcp-config \
   --mcp-config '{"mcpServers":{"aip":{"type":"http","url":"http://localhost:8000/mcp"}}}' \
   --allowedTools mcp__aip --tools "" --output-format stream-json --verbose
 # follow-ups: the same flags plus --resume <session id>
@@ -111,6 +113,11 @@ The drift query lists 5 claims where what's declared differs from what was obser
 4. **The `fights` topic could affect unknown consumers.** If your change touches what goes into the published fight message (schema `4331dd58…`), you can't list who's affected, because AIP couldn't resolve the subscribers. Don't take the topic's consumers as settled, or as absent, until someone confirms them outside AIP. The AsyncAPI source is also an *overlay* file, not a primary declaration, and its coverage is PARTIAL.
 5. **Deployment identity rests on configuration alone.** It comes only from `mapping.yaml`. If you need proof that the running pod matches, look for an observed OTel or Kubernetes link. AIP didn't provide one.
 
+> **Editorial note (added after recording; not part of the agent's answer):** suggestion 2 cannot be
+> followed in this demo. The replay starts no Quarkus services and stops its Collector after the fixed
+> replay, so no new image-narration call can be observed. A `CONFIRMED` baseline needs live traffic in
+> a running system, which is a separate validation activity. See the walkthrough's Q8.
+
 ## Turn 2
 
 **User:**
@@ -177,6 +184,14 @@ None of the three AIP tools can look up a topic's subscribers. They all start fr
 3. **Close the gap in AIP:** add AsyncAPI subscribe declarations for the consuming services, or ingest consumer-side traces, so AIP can resolve the subscription. Also note that the only publish-side declaration is an overlay file, not a primary declaration.
 4. **Until then:** if your image-narration change affects the published fight message, treat anything that consumes `fights` as an unknown number of affected parties.
 
+> **Editorial correction (added after recording; not part of the agent's answer):** suggestion 3 is
+> partly wrong. Under the v0.5.0 I4 rules, AIP resolves a subscription only from a subscribe
+> declaration that carries an **explicit Subscription identity** (`x-aip-subscription-name` or a
+> matching `subscriptionMappings` entry). A subscribe declaration without one, a Kafka consumer
+> group, or consumer-side traces cannot create that identity; runtime spans can qualify a declared
+> Subscription but never mint one. See [`docs/ingestion.md`](../../docs/ingestion.md), "Topic and
+> Subscription". Consumer traces alone do not close this gap.
+
 ## Evaluation against the spec §5 checks
 
 The three checks are: **grounded** (the architecture statements trace to AIP claim or evidence ids
@@ -194,6 +209,12 @@ from one snapshot); **no "must not claim"** (nothing from that column of the spe
 | Q7 | Turns 1, 3 | ✅ | ✅ | ✅ | `PUBLISHES_TO` not observed, consumer unknown (`UNRESOLVED_IDENTITY`). It refused to guess consumer services by name and flagged the overlay source. |
 | Q8 | Turns 1, 2 | ✅ | ✅ | ◐ | Names the unexercised image call, the unresolved narration deployment and unknown topic consumers, and never calls the change safe. It cannot name the gRPC call, which only the dossier records (see the walkthrough). |
 
-Two of its suggestions go beyond what AIP returned, and both are labelled as suggestions: the
+Two recorded suggestions are wrong or not followable here, and each has an editorial note below its
+turn: "get runtime evidence first" (turn 1), which this replay demo cannot perform, and "ingest
+consumer-side traces" (turn 3), which cannot create a Subscription identity. Both were labelled as
+suggestions, not AIP facts, so the three checks still pass. They are the kind of remediation advice a
+reader should verify against the evidence rules.
+
+Two of its other suggestions also go beyond what AIP returned, and both are labelled as suggestions: the
 `k8s.deployment.name` hint in turn 2 (AIP's observed deployment path is qualified by Pod UID and
 owner-chain evidence, not by a name alone), and "overlay file, not a primary declaration" in turn 1 (inferred from the source path).

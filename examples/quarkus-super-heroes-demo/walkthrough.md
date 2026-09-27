@@ -107,10 +107,12 @@ never ran in a cluster. Knowing *where* something runs creates no dependency.
 
 ## Q5 — And `rest-narration`? There is a Deployment with the same name.
 
-MCP `get_service_dependencies` for `service:rest-narration`, or
+MCP `get_service_dependencies` for `service:rest-narration`, or its REST equivalent
+`curl -s "http://localhost:8000/api/services/service:rest-narration/dependencies?$CTX"`. The
+deployment-only view is an additional REST route:
 `curl -s "http://localhost:8000/api/services/service:rest-narration/deployments?$CTX"`.
 
-**AIP result:** `outcome: ANSWERED` with `claims: []` and `limitations: []`. The deployments route
+**AIP result:** `outcome: ANSWERED` with `claims: []` and `limitations: []`. The deployment-only view
 returns `deployment_claims: []` and `deployment_resolutions: []`. AIP makes no deployment claim at
 all. That is neither a resolution nor an explicit `UNRESOLVED` result. The same-named `rest-narration`
 Deployment exists in the manifest, but a matching name never resolves an identity, and no annotation,
@@ -160,8 +162,12 @@ the publish at runtime.
 **Dossier context:** the gRPC `grpc-locations` call is outside AIP's answer (Q1).
 
 **Agent suggestion (not AIP output):**
-- Exercise image narration in `quarkus-i5` and re-query drift to get a `CONFIRMED` baseline before
-  the change.
+- Read the existing code path and contract before changing it: the dossier traces the call to
+  `NarrationClient.java:39-44` via `FightService.java:294-296`, and `rest-narration` provides it as
+  `generateImageFromNarration`.
+- Getting a `CONFIRMED` runtime baseline for the image call needs live traffic in a running system.
+  That is a separate validation activity: this replay demo starts no Quarkus services and stops its
+  Collector after the fixed replay, so it cannot observe new calls.
 - Coordinate any contract change with `rest-narration`, which provides the operation.
 - Treat consumers of the published fight message as unknown until they are confirmed outside AIP.
 
