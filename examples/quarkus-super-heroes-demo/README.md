@@ -25,6 +25,13 @@ The script starts AIP, Neo4j and an OpenTelemetry Collector, then:
 4. checks the real `rest-fights` answer against the frozen evidence and stops if it differs;
 5. prints the MCP URL and a ready-to-copy agent prompt, also saved in `.aip-qsh-demo/prompt.txt` at the repository root.
 
+## Ask the questions
+
+- [`walkthrough.md`](walkthrough.md): the eight task questions, each with the MCP and REST call and the
+  real answer, keeping AIP results, dossier context and agent suggestions apart.
+- [`conversation-claude-code.md`](conversation-claude-code.md): a recorded Claude Code conversation over
+  this demo, checked question by question.
+
 ## What the `rest-fights` answer shows
 
 - Seven `CALLS` to heroes, villains and narration: three `CONFIRMED` in the window and four
