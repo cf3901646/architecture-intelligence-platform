@@ -19,7 +19,7 @@ Four real coding-agent clients were qualified end to end against `v0.4.2` — se
 [`v0.4.2` compatibility matrix](docs/release-validation/v0.4.2-client-qualification.md). That
 qualification has not been repeated for `v0.5.0`.
 
-**[Run the 5-Minute Demo](#see-it-in-five-minutes) · [MCP Tools](#mcp-tools) · [How It Works](#how-aip-works)**
+**[Run the 5-Minute Demo](#see-it-in-five-minutes) · [Realistic Demo: Quarkus Super Heroes](#quarkus-super-heroes-understand-the-fight-service-before-changing-it) · [MCP Tools](#mcp-tools) · [How It Works](#how-aip-works)**
 
 ![Architecture Intelligence Platform demo: get_architecture_drift finds an undocumented LegacyPricingService dependency, then get_evidence traces it to the real OpenTelemetry observation that proves it — both real MCP tool calls, no mockups.](video/readme-demo/output/aip-readme-demo.webp)
 
@@ -125,6 +125,28 @@ Because every seeded span is frozen rather than clock-derived, two clean runs pr
 qualifications and the same `snapshot_id`. Run `examples/runtime-demo/mcp-demo.sh --down` to tear it
 back down. For the step-by-step version — every `curl` spelled out, with what each answer means —
 see [`examples/runtime-demo/hero-demo.md`](examples/runtime-demo/hero-demo.md).
+
+## Quarkus Super Heroes: understand the fight service before changing it
+
+The five-minute demo uses a small synthetic landscape. This one uses a real multi-service system,
+[Quarkus Super Heroes](https://github.com/quarkusio/quarkus-super-heroes), from AIP's v0.5.0
+real-system qualification. The task: *before changing image narration in `rest-fights`, what do I
+need to know?* One command replays the already-qualified evidence. It needs Docker and `curl`; no
+Quarkus build, Kafka, cluster or model key:
+
+```bash
+examples/quarkus-super-heroes-demo/run.sh
+```
+
+The answer for `rest-fights` shows seven operation-level `CALLS`, three `CONFIRMED` at runtime and
+four `NOT_OBSERVED_IN_WINDOW`, and a `DEPLOYED_AS` resolved through a configured mapping. It also
+shows a `PUBLISHES_TO` Topic `fights`, declared by a disclosed operator-authored AsyncAPI overlay.
+Its consumer stays an explicit `UNRESOLVED_IDENTITY` rather than a guess. The gRPC call AIP cannot
+answer yet is labelled as outside the answer, not hidden.
+
+[Demo README](examples/quarkus-super-heroes-demo/README.md) ·
+[question-by-question walkthrough](examples/quarkus-super-heroes-demo/walkthrough.md) ·
+[recorded Claude Code conversation](examples/quarkus-super-heroes-demo/conversation-claude-code.md)
 
 ## What You Can Do With It
 
@@ -362,7 +384,8 @@ and Apache Airflow. The important result wasn't that AIP "discovered everything"
 unsupported and unresolved cases stayed explicit instead of being converted into plausible
 architecture facts. See
 [`docs/real-world-validation/README.md`](docs/real-world-validation/README.md) for the
-ground-truth independence rule, dossier structure, and per-system findings.
+ground-truth independence rule, dossier structure, and per-system findings. To explore the Quarkus
+system yourself, run the [Quarkus Super Heroes demo](#quarkus-super-heroes-understand-the-fight-service-before-changing-it).
 
 <details>
 <summary>Implementation details: exact result files, historical artifacts, SHA references</summary>

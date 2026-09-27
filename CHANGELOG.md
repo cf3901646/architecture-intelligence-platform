@@ -9,6 +9,14 @@ aren't yet guaranteed stable pre-1.0.
 
 ## [Unreleased]
 
+### Added
+
+- **Quarkus Super Heroes demo** (`examples/quarkus-super-heroes-demo/`, v0.5.1): one command replays
+  the v0.5.0-qualified Quarkus Super Heroes evidence, plus a disclosed operator-authored AsyncAPI
+  overlay for Kafka `fights`. It checks the `rest-fights` answer against the frozen evidence and
+  prints a ready agent prompt. It comes with a question-by-question walkthrough and a recorded Claude
+  Code conversation. No new Architecture Knowledge semantics or MCP tools.
+
 ## [0.5.0] - 2026-09-26
 
 ### v0.5.0 — Broader Architecture Discovery

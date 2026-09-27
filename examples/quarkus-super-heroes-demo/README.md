@@ -25,6 +25,16 @@ The script starts AIP, Neo4j and an OpenTelemetry Collector, then:
 4. checks the real `rest-fights` answer against the frozen evidence and stops if it differs;
 5. prints the MCP URL and a ready-to-copy agent prompt, also saved in `.aip-qsh-demo/prompt.txt` at the repository root.
 
+## Connect your agent
+
+```bash
+claude mcp add --transport http --scope local aip http://localhost:8000/mcp
+```
+
+For Codex CLI, Cursor or VS Code, see [`../mcp-clients/`](../mcp-clients/README.md). Then paste the
+prompt from `.aip-qsh-demo/prompt.txt`. It already contains the environment and the observation
+window, which AIP needs to answer.
+
 ## Ask the questions
 
 - [`walkthrough.md`](walkthrough.md): the eight task questions, each with the MCP and REST call and the
@@ -43,6 +53,14 @@ The script starts AIP, Neo4j and an OpenTelemetry Collector, then:
 
 The gRPC call to `grpc-locations` is outside what v0.5 can answer. The dossier records it; AIP's
 answer does not.
+
+## Troubleshooting
+
+- **"port 8000 is in use"**: stop whatever uses it (often the minimal demo:
+  `examples/runtime-demo/mcp-demo.sh --down`).
+- **"the demo is already running"**: run `run.sh --down`, then `run.sh` again for a fresh replay.
+- **"The demo is NOT ready"**: the real answer differs from the frozen evidence. The listed lines
+  name each difference. Nothing is wrong with your agent; report it with those lines.
 
 ## Stop
 
