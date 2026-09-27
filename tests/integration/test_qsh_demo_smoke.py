@@ -21,6 +21,7 @@ from __future__ import annotations
 
 import importlib.util
 import json
+import os
 import shutil
 import socket
 import subprocess
@@ -66,12 +67,32 @@ def _port_open(port: int) -> bool:
 
 
 def _project_containers() -> str:
+    """The demo project's containers, read through the exact Compose contract run.sh uses: the
+    demo's own compose file, the repository as project directory and no .env file. The bare
+    `docker compose -p` form would load the repository's root docker-compose.yml, a different
+    definition whose required NEO4J_PASSWORD may be unset in a fresh checkout."""
     result = subprocess.run(
-        [DOCKER, "compose", "-p", PROJECT, "ps", "-a", "-q"],
+        [
+            DOCKER,
+            "compose",
+            "-p",
+            PROJECT,
+            "--project-directory",
+            str(REPO_ROOT),
+            "-f",
+            str(DEMO_DIR / "docker-compose.yml"),
+            "--env-file",
+            "/dev/null",
+            "ps",
+            "-a",
+            "-q",
+        ],
         capture_output=True,
         text=True,
         timeout=60,
         check=True,
+        # Only for interpolation of the demo's `:?` variable; `ps` connects to nothing.
+        env={**os.environ, "QSH_DEMO_NEO4J_PASSWORD": "unused"},
     )
     return result.stdout.strip()
 
