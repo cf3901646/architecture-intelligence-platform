@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import json
 import sys
+import urllib.error
 import urllib.parse
 import urllib.request
 
@@ -172,9 +173,18 @@ def check_answer(answer: dict) -> list[str]:
 
 
 def main() -> int:
-    problems = check_import(json.load(sys.stdin))
-    answer = dependencies()
-    problems += check_answer(answer)
+    try:
+        problems = check_import(json.load(sys.stdin))
+    except json.JSONDecodeError as exc:
+        problems = [f"the import report is not JSON: {exc}"]
+    try:
+        answer = dependencies()
+    except (urllib.error.URLError, TimeoutError, json.JSONDecodeError) as exc:
+        # HTTPError is a URLError: a non-2xx answer is reported with its status, not a traceback.
+        answer = None
+        problems.append(f"could not read the rest-fights dependencies answer: {exc}")
+    if answer is not None:
+        problems += check_answer(answer)
     if problems:
         print("The demo is NOT ready - the result differs from what the frozen evidence requires:")
         for problem in problems:
