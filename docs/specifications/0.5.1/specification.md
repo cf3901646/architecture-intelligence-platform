@@ -11,14 +11,16 @@
 
 v0.5.1 is a lightweight, ready-to-run demo over the already-qualified Quarkus Super Heroes (QSH) evidence, driven by one development task:
 
-> **"Add the narration image to the fight result: `rest-fights` should also call `POST /api/narration/image`. What do I need to know before changing it?"**
+> **"We need to change the image-narration behavior in `rest-fights`. Before touching the code, establish its dependencies, deployment context, observed behavior, supporting evidence and unresolved integration boundaries."**
+
+The feature already exists at the pinned upstream revision (`rest-fights` → `POST /api/narration/image`, dossier `ground-truth.md`). The task is to understand an existing feature before modifying it, not to add a missing one.
 
 ## 2. Constraints
 
 - Reuse the frozen v0.5.0 I5 dossier (`docs/real-world-validation/v0.5.0/quarkus-super-heroes/`, upstream pin `8ea03377bfe7a89c49e1ccc0e501bf5fafbc2cce`) as input and provenance, without modifying it. Do not start the live Quarkus stack.
 - No new Architecture Knowledge semantics, source families or MCP tools. The tools remain exactly `get_service_dependencies`, `get_architecture_drift` and `get_evidence`, over standard negotiated MCP. Keep `examples/runtime-demo/` unchanged.
 - The v0.5.0 `rest-fights` dependency answer has `limitations: []`. That does not mean the application's dependencies are completely known. The gRPC `grpc-locations` call is **dossier context**, never an AIP claim or AIP limitation, and is labelled as such.
-- **Messaging overlay.** QSH ships no AsyncAPI, so the dossier correctly records Kafka `fights` as unsupported. The demo adds a small, disclosed **operator-authored** AsyncAPI overlay (§4). A `fights` Topic may exist only because of that overlay, and it is never presented as upstream or qualified evidence. Kafka *runtime observation* stays unsupported (legacy `messaging.operation` key), and a consumer group is never a Subscription.
+- **Messaging overlay.** QSH ships no AsyncAPI, so the dossier correctly records Kafka `fights` as unsupported. The demo adds a small, disclosed **operator-authored** AsyncAPI overlay (§4). A `fights` Topic may exist only because of that overlay, and it is never presented as upstream-supplied or runtime-confirmed evidence. Under the I4 rules, the accepted overlay provides declaration evidence for `PUBLISHES_TO` `Topic:fights`; it does not provide upstream provenance, a confirmed publication or a resolved Subscription. Kafka *runtime observation* stays unsupported (legacy `messaging.operation` key), and a consumer group is never a Subscription.
 
 ## 3. Why Quarkus Super Heroes
 
@@ -63,9 +65,9 @@ The walkthrough follows the task. Each answer comes from a live AIP call, and th
 | Q3 | Why do you believe it calls `GET /api/heroes/random`? | Declared and observed evidence, resolved at the same snapshot | Evidence from another snapshot |
 | Q4 | Where does it run? | `RESOLVED_CONFIGURED` through the configured mapping, taken from the MCP dependencies answer | That deployment creates dependencies, or that it is live in a cluster |
 | Q5 | And `rest-narration`? There is a Deployment with the same name. | Not resolved: a matching name never resolves an identity | A resolution by name |
-| Q6 | What is declared but was not exercised? | The drift answer, which includes `POST /api/narration/image` | Undeclared traffic |
-| Q7 | Does it publish events, and who consumes them? | `PUBLISHES_TO` `Topic:fights`, declared by the operator overlay; the subscriber unknown (`SUBSCRIPTION_IDENTITY_MISSING`); runtime unable to confirm | A `CONFIRMED` publish, or `event-statistics` as a Subscription |
-| Q8 | What should I watch out for? | The image operation was never exercised; the narration deployment is unresolved; the gRPC `locations` call is dossier context | That the change is safe |
+| Q6 | What is declared but was not exercised? | The drift answer, which includes `POST /api/narration/image` | Undeclared traffic, or that the image feature is missing |
+| Q7 | Does it publish events, and who consumes them? | `PUBLISHES_TO` `Topic:fights`, declared by the operator overlay and not confirmed at runtime. The overlay declares `event-statistics` as a consumer, but without a Subscription identity AIP omits that side (`SUBSCRIPTION_IDENTITY_MISSING` in the import report), so AIP names no consumer. | A `CONFIRMED` publish, or `event-statistics` as a resolved Subscription or AIP-established consumer |
+| Q8 | What should I watch out for before changing image narration? | The image call is declared but was not exercised in the window; the narration deployment is unresolved; the gRPC `locations` call is dossier context | That the change is safe, or that the image path is unused |
 
 **Agent conversation.** Record one real conversation with Codex CLI or Claude Code, using the printed prompt. Check each answer against three things:
 1. it is grounded in evidence ids;
@@ -83,4 +85,4 @@ The conversation is an example, not qualification evidence. The AIP demo needs n
 
 ## 7. Done
 
-A new developer runs one command and asks what they need to know before changing `rest-fights`. They see its dependencies, runtime qualifications, deployment identity, event publication and evidence, and they can follow up through a real coding agent. Unsupported and unresolved boundaries, and the operator-authored overlay, are clearly labelled throughout. The minimal demo still works, and no new semantics or MCP tools have been added.
+A new developer runs one command and asks what they need to know before changing image narration in `rest-fights`. They see its dependencies, runtime qualifications, deployment identity, event publication and evidence, and they can follow up through a real coding agent. Unsupported and unresolved boundaries, and the operator-authored overlay, are clearly labelled throughout. The minimal demo still works, and no new semantics or MCP tools have been added.
