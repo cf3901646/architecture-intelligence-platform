@@ -1,0 +1,50 @@
+# AIP configuration for the v0.5.1 Quarkus Super Heroes demo (spec §4). It is a copy of the frozen
+# dossier's docs/real-world-validation/v0.5.0/quarkus-super-heroes/runtime/config.quarkus-i5.yaml,
+# with three differences:
+#   - paths point at /app/qsh/..., where docker-compose.yml mounts the dossier inputs read-only;
+#   - the deliberately rejected k8s/unmodified bundle is left out of this healthy demo path;
+#   - a second directory source reads the operator-authored AsyncAPI overlay (see PROVENANCE.md).
+# The source id qsh-v0.5-declarations and the cluster values stay unchanged: the dossier's frozen
+# identity bindings (sourceInstanceId) and mapping.yaml depend on them.
+architecture_intelligence:
+  sources:
+    directories:
+      - id: qsh-v0.5-declarations
+        root: qsh/declarations
+      - id: qsh-demo-overlay
+        root: qsh/overlay
+    clusters:
+      - id: qsh-k8s-namespaced
+        root: qsh/k8s/namespaced
+        envelope_relative_path: envelope.yaml
+        configured_scope_id: qsh-k8s-namespaced-scope
+        cluster_uid: qsh-i5-declared-deployment-target
+        evidence_mode: DECLARED_MANIFEST
+        authorized_producer: aip-i5-quarkus-dossier
+        authority_record: qsh-i5-dossier-freeze-authority
+    service_workload_mapping: qsh/mapping.yaml
+  graph:
+    uri: bolt://localhost:7687
+    database: neo4j
+    max_traversal_depth: 5
+  import:
+    openapi: true
+    asyncapi: true
+    architecture_manifest: true
+  llm:
+    enabled: false
+  intent_router:
+    deterministic_threshold: 0.9
+  telemetry:
+    service_aliases: {}
+    queue_aliases: {}
+    topic_aliases: {}
+    http-correlation:
+      enabled: true
+      ttl-seconds: 60
+      max-pending-spans: 10000
+    coverage:
+      qualification-enabled: true
+  runtime_analysis:
+    default_window_hours: 24
+    default_environment: quarkus-i5

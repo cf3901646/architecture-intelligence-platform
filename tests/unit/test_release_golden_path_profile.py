@@ -175,6 +175,18 @@ def test_repinned_documentation_files_are_invisible_to_the_demo_import():
         assert Path(path).name not in CANDIDATE_FILENAMES, path
 
 
+def test_quarkus_demo_files_are_invisible_to_the_demo_import():
+    """v0.5.1 I1 pinned the new `examples/quarkus-super-heroes-demo/` files, because the `demo`
+    phase mounts all of `examples/`. The discoverer only enumerates `<root>/<subdir>/<candidate>`,
+    so no candidate filename sits at that depth: the overlay's `asyncapi.yaml` files are two
+    levels deeper. The files can never change the demo import or `expected.json`."""
+    pinned = [path for path in _sums() if path.startswith("examples/quarkus-super-heroes-demo/")]
+    assert pinned
+    for path in pinned:
+        parts = Path(path).parts
+        assert not (len(parts) == 3 and parts[2] in CANDIDATE_FILENAMES), path
+
+
 # --- §7.2 transcription equivalence -------------------------------------------------------------
 
 

@@ -1,0 +1,271 @@
+{
+  "resourceSpans": [
+    {
+      "resource": {
+        "attributes": [
+          {
+            "key": "service.name",
+            "value": {
+              "stringValue": "rest-fights"
+            }
+          },
+          {
+            "key": "service.version",
+            "value": {
+              "stringValue": "1.0"
+            }
+          },
+          {
+            "key": "deployment.environment.name",
+            "value": {
+              "stringValue": "quarkus-i5"
+            }
+          }
+        ]
+      },
+      "scopeSpans": [
+        {
+          "scope": {
+            "name": "aip-qsh-demo-transcription"
+          },
+          "spans": [
+            {
+              "traceId": "c5010000000000000000000000000000",
+              "spanId": "c501c00000000000",
+              "name": "GET /api/villains/random",
+              "kind": 3,
+              "startTimeUnixNano": "1790341608739771000",
+              "endTimeUnixNano": "1790341608746771000",
+              "attributes": [
+                {
+                  "key": "http.request.method",
+                  "value": {
+                    "stringValue": "GET"
+                  }
+                },
+                {
+                  "key": "http.route",
+                  "value": {
+                    "stringValue": "/api/villains/random"
+                  }
+                }
+              ]
+            },
+            {
+              "traceId": "c5020000000000000000000000000000",
+              "spanId": "c502c00000000000",
+              "name": "GET /api/heroes/random",
+              "kind": 3,
+              "startTimeUnixNano": "1790341608893936000",
+              "endTimeUnixNano": "1790341608900936000",
+              "attributes": [
+                {
+                  "key": "http.request.method",
+                  "value": {
+                    "stringValue": "GET"
+                  }
+                },
+                {
+                  "key": "http.route",
+                  "value": {
+                    "stringValue": "/api/heroes/random"
+                  }
+                }
+              ]
+            },
+            {
+              "traceId": "c5030000000000000000000000000000",
+              "spanId": "c503c00000000000",
+              "name": "POST /api/narration",
+              "kind": 3,
+              "startTimeUnixNano": "1790341610843494000",
+              "endTimeUnixNano": "1790341610850494000",
+              "attributes": [
+                {
+                  "key": "http.request.method",
+                  "value": {
+                    "stringValue": "POST"
+                  }
+                },
+                {
+                  "key": "http.route",
+                  "value": {
+                    "stringValue": "/api/narration"
+                  }
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "resource": {
+        "attributes": [
+          {
+            "key": "service.name",
+            "value": {
+              "stringValue": "rest-villains"
+            }
+          },
+          {
+            "key": "service.version",
+            "value": {
+              "stringValue": "1.0"
+            }
+          },
+          {
+            "key": "deployment.environment.name",
+            "value": {
+              "stringValue": "quarkus-i5"
+            }
+          }
+        ]
+      },
+      "scopeSpans": [
+        {
+          "scope": {
+            "name": "aip-qsh-demo-transcription"
+          },
+          "spans": [
+            {
+              "traceId": "c5010000000000000000000000000000",
+              "spanId": "c501500000000000",
+              "parentSpanId": "c501c00000000000",
+              "name": "GET /api/villains/random",
+              "kind": 2,
+              "startTimeUnixNano": "1790341608740771000",
+              "endTimeUnixNano": "1790341608745771000",
+              "attributes": [
+                {
+                  "key": "http.request.method",
+                  "value": {
+                    "stringValue": "GET"
+                  }
+                },
+                {
+                  "key": "http.route",
+                  "value": {
+                    "stringValue": "/api/villains/random"
+                  }
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "resource": {
+        "attributes": [
+          {
+            "key": "service.name",
+            "value": {
+              "stringValue": "rest-heroes"
+            }
+          },
+          {
+            "key": "service.version",
+            "value": {
+              "stringValue": "1.0"
+            }
+          },
+          {
+            "key": "deployment.environment.name",
+            "value": {
+              "stringValue": "quarkus-i5"
+            }
+          }
+        ]
+      },
+      "scopeSpans": [
+        {
+          "scope": {
+            "name": "aip-qsh-demo-transcription"
+          },
+          "spans": [
+            {
+              "traceId": "c5020000000000000000000000000000",
+              "spanId": "c502500000000000",
+              "parentSpanId": "c502c00000000000",
+              "name": "GET /api/heroes/random",
+              "kind": 2,
+              "startTimeUnixNano": "1790341608894936000",
+              "endTimeUnixNano": "1790341608899936000",
+              "attributes": [
+                {
+                  "key": "http.request.method",
+                  "value": {
+                    "stringValue": "GET"
+                  }
+                },
+                {
+                  "key": "http.route",
+                  "value": {
+                    "stringValue": "/api/heroes/random"
+                  }
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "resource": {
+        "attributes": [
+          {
+            "key": "service.name",
+            "value": {
+              "stringValue": "rest-narration"
+            }
+          },
+          {
+            "key": "service.version",
+            "value": {
+              "stringValue": "1.0"
+            }
+          },
+          {
+            "key": "deployment.environment.name",
+            "value": {
+              "stringValue": "quarkus-i5"
+            }
+          }
+        ]
+      },
+      "scopeSpans": [
+        {
+          "scope": {
+            "name": "aip-qsh-demo-transcription"
+          },
+          "spans": [
+            {
+              "traceId": "c5030000000000000000000000000000",
+              "spanId": "c503500000000000",
+              "parentSpanId": "c503c00000000000",
+              "name": "POST /api/narration",
+              "kind": 2,
+              "startTimeUnixNano": "1790341610844494000",
+              "endTimeUnixNano": "1790341610849494000",
+              "attributes": [
+                {
+                  "key": "http.request.method",
+                  "value": {
+                    "stringValue": "POST"
+                  }
+                },
+                {
+                  "key": "http.route",
+                  "value": {
+                    "stringValue": "/api/narration"
+                  }
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

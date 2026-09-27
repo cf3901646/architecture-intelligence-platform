@@ -1,0 +1,43 @@
+# Operator-authored AsyncAPI overlay for the v0.5.1 demo - NOT an upstream document. Quarkus Super
+# Heroes ships no AsyncAPI; see ../../PROVENANCE.md for the upstream code this declares.
+asyncapi: '2.6.0'
+info:
+  # The title becomes the Service display name, so it matches the existing one.
+  title: event-statistics
+  description: Operator-authored overlay for the AIP v0.5.1 demo, not an upstream document.
+  version: "1.0.0"
+x-aip-service-id: service:event-statistics
+servers:
+  fights-kafka:
+    url: fights-kafka:9092
+    protocol: kafka
+    x-aip-broker-id: kafka:fights-kafka
+channels:
+  fights:
+    x-aip-destination-kind: topic
+    subscribe:
+      operationId: consumeFight
+      # Deliberately no x-aip-subscription-name: the upstream consumer is a Kafka consumer group,
+      # which is never a Subscription (v0.5.0 I4). AIP omits this side (SUBSCRIPTION_IDENTITY_MISSING).
+      message:
+        $ref: '#/components/messages/Fight'
+components:
+  messages:
+    Fight:
+      name: Fight
+      # Transcribed from upstream rest-fights/src/main/avro/fight.avsc (record
+      # io.quarkus.sample.superheroes.fight.schema.Fight) at 8ea03377bfe7a89c49e1ccc0e501bf5fafbc2cce.
+      payload:
+        type: object
+        required: [fightDate, winnerName, winnerLevel, loserName, loserLevel, winnerTeam, loserTeam]
+        properties:
+          id: {type: [string, "null"]}
+          fightDate: {type: integer, description: "Avro long, logicalType timestamp-micros"}
+          winnerName: {type: string}
+          winnerLevel: {type: integer}
+          winnerPicture: {type: [string, "null"]}
+          loserName: {type: string}
+          loserLevel: {type: integer}
+          loserPicture: {type: [string, "null"]}
+          winnerTeam: {type: string}
+          loserTeam: {type: string}
