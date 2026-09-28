@@ -21,10 +21,10 @@ aren't yet guaranteed stable pre-1.0.
   for the common forms of merging pull requests, force-pushing and pushing directly to `main` (not
   a security boundary; the rule itself stays procedural), and allows the exact check commands
   without a prompt.
-- REST API snapshot: `schemas/rest/openapi.json`, regenerated with
+- REST API snapshot: `tests/snapshots/openapi.json`, regenerated with
   `uv run python -m app.api.openapi_export`; a unit test fails whenever the REST API drifts from
-  it, so every REST change is an explicit, reviewed diff. It detects changes; it doesn't make the
-  REST API stable.
+  it, so every REST change is an explicit, reviewed diff. It's a change detector, not a published
+  contract, and doesn't make the REST API stable (`info.version` reads `snapshot`).
 
 ### Changed
 
@@ -32,7 +32,8 @@ aren't yet guaranteed stable pre-1.0.
   stacks, integration tests and harnesses, and Python 3.14.7 and uv 0.12.19 in the root
   `Dockerfile` (the exact base images v0.5.0 was built from). `examples/runtime-demo/Dockerfile`
   stays unpinned because the frozen v0.5.0 release golden-path profile checksums it. Dependabot now
-  also updates the compose files, and a unit test rejects unpinned images.
+  also updates the compose files (except Neo4j major versions), and a unit test rejects
+  unpinned images.
 - `ServiceIdentityResolution` now rejects, at construction, a `RESOLVED` outcome without a
   `service_id` (and a rejected outcome with one). Every built-in resolver already complied; a custom
   `ServiceIdentityResolver` returning an inconsistent resolution now fails loudly instead of
