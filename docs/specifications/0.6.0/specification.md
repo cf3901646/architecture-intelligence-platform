@@ -89,10 +89,10 @@ The final candidate SHALL derive from the published `v0.5.1` baseline and retain
 `v0.6.0` SHALL deliver:
 
 1. An explicit **locality/context applicability contract** for Current-State evidence, with minimum supported dimensions and refusal rules (§§6–8).
-2. A first-class internal **Qualified Local Evidence Assessment** semantic unit, independent of Intent (§§9–12).
+2. A first-class internal **Qualified Local Evidence Assessment** semantic unit, independent of Intent (§§10–12).
 3. One bounded, deterministic **Current-State projection** over applicable local assessments, with explicit included/excluded/unknown scope, coverage, qualification, and limitations (§§13–16).
 4. A **question-specific locality answer**, suitable for asking where an existing supported relationship holds and comparing evidenced results in selected localities (§§17–19).
-5. REST and negotiated-MCP exposure through the single Architecture Intelligence semantic owner, versioned contracts, and same-snapshot evidence drill-down (§§20–23).
+5. REST and negotiated-MCP exposure through the single Architecture Intelligence semantic owner, versioned contracts, and same-snapshot evidence drill-down (§18).
 6. Independent deterministic positive/negative qualification, v0.5 regression, two real-system boundary checks, a realistic developer walkthrough, and an explicit product-value/pilot disposition (§§20–25).
 7. Exact-candidate release qualification, owner-authorized publication if granted, and post-publication artifact verification (§§26–28).
 
@@ -408,7 +408,7 @@ At a minimum, deterministic scenarios SHALL cover:
 | Intent-like document or agent-generated narrative is added | No alteration to Current State or its lineage. |
 | Existing v0.5.1 Quarkus replay and operator AsyncAPI overlay | No newly inferred runtime locality or Kafka observation. |
 
-I4 SHALL run all qualifying scenarios twice from clean state with byte-identical normalized semantic output and no unexplained nondeterminism. For equivalent requests, semantic mismatches across service/REST/MCP SHALL be zero; no material missing supported claims, no false supported scope, no silent context loss, and no regression in pre-existing qualification. A lower false-claim rate achieved solely by returning every locality unresolved is not success (§27).
+I4 SHALL run all qualifying scenarios twice from clean state with byte-identical normalized semantic output and no unexplained nondeterminism. For equivalent requests, semantic mismatches across service/REST/MCP SHALL be zero; no material missing supported claims, no false supported scope, no silent context loss, and no regression in pre-existing qualification. A lower false-claim rate achieved solely by returning every locality unresolved is not success (§24).
 
 ## 21. I4 Compatibility and Security Gates
 
