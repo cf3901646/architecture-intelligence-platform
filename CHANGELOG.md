@@ -23,8 +23,8 @@ aren't yet guaranteed stable pre-1.0.
   producing canonical ids such as `operation:None:...`.
 - The OpenAI provider now raises `LLMProviderError` when the model returns no parsed Cypher or no
   answer content (for example on a refusal), instead of an `AttributeError` or a `None` answer that
-  failed response validation. The HTTP outcome is unchanged (an error response on `/api/query` and
-  the UI query page).
+  failed when the query response was built. The HTTP outcome is unchanged (an error response on
+  `/api/query` and the UI query page).
 
 ## [0.5.1] - 2026-09-27
 
