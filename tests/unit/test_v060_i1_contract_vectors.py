@@ -6,6 +6,7 @@ for the frozen contract, not a test of AIP's implementation (I1 §13, §14).
 """
 
 import hashlib
+import itertools
 import json
 import re
 from datetime import UTC, date, datetime, timedelta
@@ -253,3 +254,77 @@ def test_no_v2_snapshot_pin_matches_golden_path() -> None:
     pin = V2["no_v2_snapshot_pin"]
     expected = (ROOT / pin["source"]).read_text(encoding="utf-8")
     assert f'"actual_snapshot_id": "{pin["snapshot_id"]}"' in expected
+
+
+_CONSISTENCY_FIELDS = (
+    "k8s_namespace_name",
+    "k8s_pod_name",
+    "k8s_deployment_name",
+    "k8s_statefulset_name",
+    "k8s_daemonset_name",
+)
+_MODE_STRENGTH = {"CLIENT_ONLY": 2, "CLIENT_SERVER": 3}
+
+
+def _seed_record(seed: dict) -> dict:
+    return {
+        "first_seen": seed["fact_timestamp"],
+        "last_seen": seed["fact_timestamp"],
+        "observation_count": 1,
+        "correlation_mode": seed["correlation_mode"],
+        "sample_trace_ids": [seed["trace_id"]],
+        **{f: seed[f] for f in _CONSISTENCY_FIELDS},
+        "conflicting_consistency_attributes": [],
+    }
+
+
+def _merge(existing: dict, seed: dict, *, absorbing: bool) -> dict:
+    new = _seed_record(seed)
+    conflicts = set(existing["conflicting_consistency_attributes"])
+    merged = {
+        "first_seen": min(existing["first_seen"], new["first_seen"]),
+        "last_seen": max(existing["last_seen"], new["last_seen"]),
+        "observation_count": existing["observation_count"] + 1,
+        "correlation_mode": max(
+            existing["correlation_mode"], new["correlation_mode"], key=_MODE_STRENGTH.__getitem__
+        ),
+        "sample_trace_ids": sorted(
+            set(existing["sample_trace_ids"]) | set(new["sample_trace_ids"])
+        )[:5],
+    }
+    for field in _CONSISTENCY_FIELDS:
+        old, value = existing[field], new[field]
+        if absorbing and field in conflicts:
+            merged[field] = None
+        elif old is not None and value is not None and old != value:
+            conflicts.add(field)
+            merged[field] = None
+        else:
+            # The v0.5 fallback: a flagged field's null is refilled from the other side.
+            merged[field] = old if old is not None else value
+    merged["conflicting_consistency_attributes"] = sorted(conflicts)
+    return merged
+
+
+def _fold(seeds: tuple[dict, ...], *, absorbing: bool) -> dict:
+    record = _seed_record(seeds[0])
+    for seed in seeds[1:]:
+        record = _merge(record, seed, absorbing=absorbing)
+    return record
+
+
+@pytest.mark.parametrize("vector", V2["merge_permutation_vectors"], ids=lambda v: v["id"])
+def test_v2_merge_is_permutation_invariant(vector: dict) -> None:
+    for order in itertools.permutations(vector["seeds"]):
+        assert _fold(order, absorbing=True) == vector["expected"]
+
+
+def test_v05_style_merge_would_be_order_dependent() -> None:
+    """Why v2 freezes the absorbing rule: v0.5's refill-after-conflict merge differs by order."""
+    seeds = {
+        s["trace_id"][0] + s["fact_timestamp"][11:13]: s
+        for s in V2["merge_permutation_vectors"][0]["seeds"]
+    }
+    a1, b, a2 = seeds["a10"], seeds["b12"], seeds["a11"]
+    assert _fold((a1, b, a2), absorbing=False)["k8s_pod_name"] == "orders-a"
+    assert _fold((a1, a2, b), absorbing=False)["k8s_pod_name"] is None

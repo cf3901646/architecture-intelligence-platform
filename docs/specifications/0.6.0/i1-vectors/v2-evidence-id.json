@@ -270,5 +270,156 @@
     "source": "examples/release-golden-path/expected.json",
     "canonicalization_version": 3,
     "rule": "With zero v2 records the state has no scoped_observed_calls_v2 key and this ID is unchanged."
-  }
+  },
+  "merge_permutation_vectors": [
+    {
+      "id": "MP01-absorbing-conflict",
+      "description": "k8s_pod_name seeds A, B, A: the flag absorbs, so the value stays null in every order. v0.5's merge would end with 'orders-a' for A,B,A and null for A,A,B.",
+      "seeds": [
+        {
+          "fact_timestamp": "2026-09-28T10:00:00.000000Z",
+          "trace_id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "correlation_mode": "CLIENT_ONLY",
+          "k8s_namespace_name": "shop",
+          "k8s_pod_name": "orders-a",
+          "k8s_deployment_name": "orders",
+          "k8s_statefulset_name": null,
+          "k8s_daemonset_name": null
+        },
+        {
+          "fact_timestamp": "2026-09-28T12:00:00.000000Z",
+          "trace_id": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+          "correlation_mode": "CLIENT_SERVER",
+          "k8s_namespace_name": "shop",
+          "k8s_pod_name": "orders-b",
+          "k8s_deployment_name": null,
+          "k8s_statefulset_name": null,
+          "k8s_daemonset_name": null
+        },
+        {
+          "fact_timestamp": "2026-09-28T11:00:00.000000Z",
+          "trace_id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "correlation_mode": "CLIENT_ONLY",
+          "k8s_namespace_name": null,
+          "k8s_pod_name": "orders-a",
+          "k8s_deployment_name": "orders",
+          "k8s_statefulset_name": null,
+          "k8s_daemonset_name": null
+        }
+      ],
+      "expected": {
+        "first_seen": "2026-09-28T10:00:00.000000Z",
+        "last_seen": "2026-09-28T12:00:00.000000Z",
+        "observation_count": 3,
+        "correlation_mode": "CLIENT_SERVER",
+        "sample_trace_ids": [
+          "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+        ],
+        "k8s_namespace_name": "shop",
+        "k8s_pod_name": null,
+        "k8s_deployment_name": "orders",
+        "k8s_statefulset_name": null,
+        "k8s_daemonset_name": null,
+        "conflicting_consistency_attributes": [
+          "k8s_pod_name"
+        ]
+      }
+    },
+    {
+      "id": "MP02-sample-truncation",
+      "description": "Seven distinct trace IDs in scrambled order: samples are the 5 smallest, sorted.",
+      "seeds": [
+        {
+          "fact_timestamp": "2026-09-28T01:00:00.000000Z",
+          "trace_id": "77777777777777777777777777777777",
+          "correlation_mode": "CLIENT_SERVER",
+          "k8s_namespace_name": "shop",
+          "k8s_pod_name": null,
+          "k8s_deployment_name": null,
+          "k8s_statefulset_name": null,
+          "k8s_daemonset_name": null
+        },
+        {
+          "fact_timestamp": "2026-09-28T02:00:00.000000Z",
+          "trace_id": "22222222222222222222222222222222",
+          "correlation_mode": "CLIENT_SERVER",
+          "k8s_namespace_name": "shop",
+          "k8s_pod_name": null,
+          "k8s_deployment_name": null,
+          "k8s_statefulset_name": null,
+          "k8s_daemonset_name": null
+        },
+        {
+          "fact_timestamp": "2026-09-28T03:00:00.000000Z",
+          "trace_id": "99999999999999999999999999999999",
+          "correlation_mode": "CLIENT_SERVER",
+          "k8s_namespace_name": "shop",
+          "k8s_pod_name": null,
+          "k8s_deployment_name": null,
+          "k8s_statefulset_name": null,
+          "k8s_daemonset_name": null
+        },
+        {
+          "fact_timestamp": "2026-09-28T04:00:00.000000Z",
+          "trace_id": "44444444444444444444444444444444",
+          "correlation_mode": "CLIENT_SERVER",
+          "k8s_namespace_name": "shop",
+          "k8s_pod_name": null,
+          "k8s_deployment_name": null,
+          "k8s_statefulset_name": null,
+          "k8s_daemonset_name": null
+        },
+        {
+          "fact_timestamp": "2026-09-28T05:00:00.000000Z",
+          "trace_id": "11111111111111111111111111111111",
+          "correlation_mode": "CLIENT_SERVER",
+          "k8s_namespace_name": "shop",
+          "k8s_pod_name": null,
+          "k8s_deployment_name": null,
+          "k8s_statefulset_name": null,
+          "k8s_daemonset_name": null
+        },
+        {
+          "fact_timestamp": "2026-09-28T06:00:00.000000Z",
+          "trace_id": "88888888888888888888888888888888",
+          "correlation_mode": "CLIENT_SERVER",
+          "k8s_namespace_name": "shop",
+          "k8s_pod_name": null,
+          "k8s_deployment_name": null,
+          "k8s_statefulset_name": null,
+          "k8s_daemonset_name": null
+        },
+        {
+          "fact_timestamp": "2026-09-28T07:00:00.000000Z",
+          "trace_id": "55555555555555555555555555555555",
+          "correlation_mode": "CLIENT_SERVER",
+          "k8s_namespace_name": "shop",
+          "k8s_pod_name": null,
+          "k8s_deployment_name": null,
+          "k8s_statefulset_name": null,
+          "k8s_daemonset_name": null
+        }
+      ],
+      "expected": {
+        "first_seen": "2026-09-28T01:00:00.000000Z",
+        "last_seen": "2026-09-28T07:00:00.000000Z",
+        "observation_count": 7,
+        "correlation_mode": "CLIENT_SERVER",
+        "sample_trace_ids": [
+          "11111111111111111111111111111111",
+          "22222222222222222222222222222222",
+          "44444444444444444444444444444444",
+          "55555555555555555555555555555555",
+          "77777777777777777777777777777777"
+        ],
+        "k8s_namespace_name": "shop",
+        "k8s_pod_name": null,
+        "k8s_deployment_name": null,
+        "k8s_statefulset_name": null,
+        "k8s_daemonset_name": null,
+        "conflicting_consistency_attributes": []
+      }
+    }
+  ]
 }

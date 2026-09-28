@@ -68,10 +68,12 @@ A v2 record is created or merged only for an accepted v0.5 CALLS whose original 
 | `observation_count` | 1 | sum | Commutative. Replay caveats are in §7. |
 | `correlation_mode` | `CLIENT_SERVER` or `CLIENT_ONLY` (`SERVER_ONLY` never yields v2) | The stronger mode under v1's `_CORRELATION_MODE_STRENGTH` (`aggregator.py`:27), i.e. `CLIENT_SERVER` over `CLIENT_ONLY` | max over a total order |
 | `sample_trace_ids` | `[trace_id]` | **[owner decision, I1.3]** The distinct union, sorted ascending by code point and truncated to the first **5**. v1 keeps first-arrival order (`_cap_trace_ids`, `aggregator.py`:85), which is not permutation-invariant. v2 must be, so it sorts. | Sorting followed by a prefix of the sorted set is order-independent |
-| `k8s_namespace_name`, `k8s_pod_name`, `k8s_deployment_name`, `k8s_statefulset_name`, `k8s_daemonset_name` | The admissible CLIENT value, or `null` (matrix §10.1–10.2) | **[owner decision, I1.3]** The same rule as v0.5 `merge_runtime_identity_observation` (`aggregator.py`:124). A `null` never erases a known value. Two different non-null values set the field to `null` and add its name to `conflicting_consistency_attributes`. | The final flag set is exactly the attributes with two or more distinct non-null values across all seeds, and the value of an unflagged field is its single non-null value. Once flagged, a field stays flagged. |
+| `k8s_namespace_name`, `k8s_pod_name`, `k8s_deployment_name`, `k8s_statefulset_name`, `k8s_daemonset_name` | The admissible CLIENT value, or `null` (matrix §10.1–10.2) | **[owner decision, I1.3]** An **absorbing-conflict** rule, applied per field. (1) If the field is already flagged in the record, it stays `null` and flagged, whatever the seed carries. (2) Otherwise, a `null` on either side never erases a known value. (3) Two different non-null values set the field to `null` and flag it. Equivalently, over all seeds of the record, the final value is the single distinct non-null value if there is exactly one, and `null` if there are none. If there are two or more, the value is `null` and the field is flagged. | The final value and flag are a function of the **set** of non-null values seen, so any order gives the same result (vectors `MP01`, `MP02`). |
 | `conflicting_consistency_attributes` | `[]` | Sorted, distinct union | Set union |
 | `key_rule_id` / `key_rule_version` | `otel-calls-scoped-evidence-v2-key` / `1` | Constant | — |
 | `normalization_rule_id` / `normalization_rule_version` | `otel-client-caller-attribution` / `1` (matrix §10) | Constant | — |
+
+**Deliberate divergence from v0.5.** The v0.5 `merge_runtime_identity_observation` (`aggregator.py`:124) keeps the flag monotonic but not the value. A later seed refills a flagged field's `null` from the non-null side. For `k8s_pod_name` seeds `A, B, A`, v0.5 ends with `A` (flagged), while `A, A, B` ends with `null` (flagged). That is order-dependent, so equal input sets could yield different v2 bytes and snapshot IDs. v2 therefore uses the absorbing rule above. v0.5's runtime identity merge is **unchanged** by this contract. Its order dependence is recorded here as a baseline observation, and the vector test demonstrates it.
 
 **Query-time effect of a flagged attribute [owner decision, I1.3].** A non-empty `conflicting_consistency_attributes` means that CLIENT evidence for this one Pod contradicts itself. It mirrors v0.5 Path C, where a non-empty list is a contradiction (`_consistency_attributes_agree`, B10). The record stays valid and Pod-bound. When a candidate reaches phase 4, the result is `CONFLICT` / `LOCALITY_POD_OWNER_CONFLICT`. Phases 1–3 still short-circuit first (matrix §15.2).
 
@@ -150,6 +152,7 @@ Each report entry carries the source identity and revision, the environment, the
 
 [`i1-vectors/v2-evidence-id.json`](i1-vectors/v2-evidence-id.json) holds:
 - **`key_vectors`:** `V01` base, `V02` reordered input (L01), `V03` distinct Pod (L02), `V04` same Pod UID in another cluster (L03), `V05` non-ASCII environment, `V06` other Operation (L04/L27 shape), `V07` next day.
+- **`merge_permutation_vectors`:** `MP01`, three seeds whose `k8s_pod_name` values are `A, B, A` (absorbing conflict, plus min/max/sum/mode/sample merging), and `MP02`, seven distinct trace IDs in scrambled order (sorted, truncated to 5). The test folds the seeds in **every** permutation and requires the recorded result each time.
 - **`v1_unchanged`:** one v1 ID shared by `V01`/`V03`, and a separate v1 ID for `V06`.
 - **`snapshot_fragment`:** the conditional state value.
 - **`no_v2_snapshot_pin`:** the golden pin.
@@ -167,7 +170,7 @@ The canonical bytes were written by hand and the hashes computed with the `sha25
 | §7.1 golden vectors for reordering, distinct Pod UID, distinct cluster UID | §10, `V02`–`V04` |
 | §7.2 dual representation, no double count, isolated storage, no second semantic owner | §5 |
 | §7.2 no v1 backfill; `LEGACY_UNSCOPED`/eligible/refused reporting | §6 |
-| §7.2 clean replay; no exactly-once overclaim; I2 freezes retry | §3, §7 |
+| §7.2 clean replay; no exactly-once overclaim; I2 freezes retry | §3 (absorbing conflict, `MP01`/`MP02`), §7 |
 | §11.1 one conditional fingerprint; no-v2 pin (L13, L14); DoD 6 | §8 |
 | §11.4–11.5 bounded retention; Pod-churn cost; ADR 0012 Proposed | §9 |
 | §15 register rows "v2 key/ID", "v1/v2 coexistence and migration", "Snapshot", "Cost/retention" | §§1–9 |
