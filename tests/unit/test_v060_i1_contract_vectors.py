@@ -460,3 +460,18 @@ def test_dossier_headings_match_machine_readable_cases() -> None:
     assert headings == [(case["id"], case["title"]) for case in CONFORMANCE["cases"]]
     for name, _ in _variants():
         assert f"| {name} |" in dossier, name
+
+
+def test_rejected_envelopes_are_never_selected_captures() -> None:
+    """A capture the v0.5 envelope validation rejects cannot be a query's selected capture."""
+    non_selectable = set(CONFORMANCE["fixtures"]["non_selectable_captures"])
+    assert non_selectable <= set(CONFORMANCE["fixtures"]["captures"])
+    for case in CONFORMANCE["cases"]:
+        for variant in case["variants"]:
+            expected = variant["expected"]
+            for result in expected.get("query", []):
+                assert result["selected_capture"] not in non_selectable, case["id"]
+            if "import" in expected:
+                assert expected["import"]["result"].startswith("REJECTED_")
+                assert expected["import"]["selectable"] is False
+                assert "query" not in expected, case["id"]

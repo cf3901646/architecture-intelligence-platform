@@ -34,13 +34,16 @@
       "CAP-A": "CAPTURED_RESOURCE, clusterUid K1, capturedAt 2026-09-28T12:00:00Z, namespace shop; P1->ReplicaSet->W1, P2->ReplicaSet->W2",
       "CAP-B": "as CAP-A but capturedAt 2026-09-28T18:00:00Z and P1 absent (W1 deleted)",
       "CAP-A-D1": "as CAP-A but capturedAt 2026-09-29T12:00:00Z",
-      "CAP-A-NOTIME": "as CAP-A but capturedAt missing or without offset",
+      "CAP-A-NOTIME": "as CAP-A but capturedAt present, non-empty and without an offset (e.g. 2026-09-28T12:00:00), so Path C parses it as missing; an absent field is instead rejected at import (L17e)",
       "CAP-DM": "DECLARED_MANIFEST contribution for namespace shop",
       "CAP-AMB": "CAPTURED_RESOURCE, K1, day D; P1 has several admissible Workload candidates, no contradiction (Path C AMBIGUOUS)",
       "CAP-CONF": "CAPTURED_RESOURCE, K1, day D; contradictory owner paths for P1 (Path C CONFLICT)",
       "CAP-CONF-D1": "as CAP-CONF but capturedAt on D+1",
-      "CAP-PARTIAL": "CAPTURED_RESOURCE, K1, day D, completeness not COMPLETE; P1 absent"
-    }
+      "CAP-PARTIAL": "same source as CAP-A, completeness.status PARTIAL, P1 omitted; rejected at import (REJECTED_INVALID / K8S_SNAPSHOT_INCOMPLETE), never selectable"
+    },
+    "non_selectable_captures": [
+      "CAP-PARTIAL"
+    ]
   },
   "cases": [
     {
@@ -640,7 +643,7 @@
         },
         {
           "id": "b",
-          "inputs": "V01; CAP-A without a parseable capturedAt",
+          "inputs": "V01; selected CAP-A-NOTIME (capturedAt present and non-empty but offset-less, so the Path C parser treats it as missing)",
           "expected": {
             "query": [
               {
@@ -687,6 +690,18 @@
                 ]
               }
             ]
+          }
+        },
+        {
+          "id": "e",
+          "inputs": "import of an envelope whose metadata.capturedAt field is absent",
+          "expected": {
+            "import": {
+              "result": "REJECTED_INVALID",
+              "diagnostic": "K8S_SNAPSHOT_INVALID",
+              "selectable": false
+            },
+            "locality_evaluated": false
           }
         }
       ],
@@ -1101,17 +1116,29 @@
       "variants": [
         {
           "id": "a",
-          "inputs": "selected capture's inventory incomplete; P1 absent from it",
+          "inputs": "CAP-A accepted and selected; then CAP-PARTIAL (same source, completeness.status PARTIAL, P1 omitted) is imported",
+          "expected": {
+            "import": {
+              "result": "REJECTED_INVALID",
+              "diagnostic": "K8S_SNAPSHOT_INCOMPLETE",
+              "selectable": false
+            },
+            "selected_capture_after": "CAP-A",
+            "committed_state_preserved": true
+          }
+        },
+        {
+          "id": "b",
+          "inputs": "after a: V01 queried against the actually selected capture",
           "expected": {
             "query": [
               {
                 "candidate": "V01-base",
-                "selected_capture": "CAP-PARTIAL",
+                "selected_capture": "CAP-A",
                 "phase": 4,
-                "disposition": "UNRESOLVED",
-                "reasons": [
-                  "LOCALITY_CAPTURE_MISSING_POD"
-                ]
+                "disposition": "APPLICABLE",
+                "reasons": [],
+                "workload": "W1"
               }
             ],
             "v2_retained": true
@@ -1119,8 +1146,9 @@
         }
       ],
       "prohibited": [
-        "local absence inferred",
-        "removal authority widened"
+        "local absence inferred from the incomplete capture",
+        "removal authority widened",
+        "a rejected envelope evaluated as a selected capture"
       ]
     },
     {

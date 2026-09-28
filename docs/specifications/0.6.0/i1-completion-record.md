@@ -69,7 +69,7 @@ Every decision below was left open to I1 by the accepted spec (I1 ยง15; parent ย
 
 | Check | Status | Result |
 |---|---|---|
-| `tests/unit/test_v060_i1_contract_vectors.py` (stdlib only, no `app/` import): window, timestamp-role, v2/v1 ID, merge-permutation, snapshot-fragment and pin vectors, and dossier consistency and drift | **RUN** | 117 passed, as part of the full unit suite in the I1.5 PR |
+| `tests/unit/test_v060_i1_contract_vectors.py` (stdlib only, no `app/` import): window, timestamp-role, v2/v1 ID, merge-permutation, snapshot-fragment and pin vectors, dossier consistency and drift, and the rejected-envelope selectability guard | **RUN** | 120 passed, as part of the full unit suite in the I1.5 PR |
 | Mutation proofs: a corrupted v2 hash; a wrong L36 disposition; an ingestion code leaked into L05's answer | **RUN** | Each failed as expected and passed again once restored |
 | Full local gate on the I1.5 branch (`ruff format`, `ruff check`, `pyright`, `lint-imports`, unit, integration) | **RUN** | See the I1.5 PR description |
 | I2 implementation tests against the dossier | `NOT_RUN` | I2 |
@@ -93,6 +93,7 @@ Every decision below was left open to I1 by the accepted spec (I1 ยง15; parent ย
   - #308 separated the CLIENT and fact timestamp roles.
   - #309 replaced the order-dependent v0.5 merge rule with the absorbing rule.
   - #310 pinned the protobuf replay wire path.
+  - The #311 review made L17 and L29 reachable. An envelope without `capturedAt`, or one that is not `COMPLETE`, is rejected by v0.5 validation (`REJECTED_INVALID`) and is never a selected capture, and the prior committed capture is preserved. L17e and L29a/b now record this, and a guard test prevents a query from selecting a rejected envelope.
 
   None changes an accepted I1 semantic.
 - **Merge vectors:** `merge_permutation_vectors` were not in the plan. They were added to prove the ยง7.2 permutation invariance the #309 review required.

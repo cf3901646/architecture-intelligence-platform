@@ -42,16 +42,17 @@ The key vectors in `v2-evidence-id.json` already use these values.
 | `CAP-A` | `CAPTURED_RESOURCE`, `clusterUid` K1, `capturedAt` `2026-09-28T12:00:00Z`, namespace `shop`; P1 → ReplicaSet → W1, P2 → ReplicaSet → W2 (the runbook's overlap capture C1) |
 | `CAP-B` | As `CAP-A`, but `capturedAt` `2026-09-28T18:00:00Z` and P1 absent because W1 was deleted (the runbook's C2) |
 | `CAP-A-D1` | As `CAP-A`, but `capturedAt` on D+1 |
-| `CAP-A-NOTIME` | As `CAP-A`, with `capturedAt` missing or without an offset |
+| `CAP-A-NOTIME` | As `CAP-A`, with `capturedAt` present and non-empty but without an offset (e.g. `2026-09-28T12:00:00`), so the Path C parser treats it as missing. An envelope with **no** `capturedAt` field fails shape validation and is never selectable (L17e). |
 | `CAP-DM` | A `DECLARED_MANIFEST` contribution for `shop` |
 | `CAP-AMB` / `CAP-CONF` | Captured, K1, day D. P1 has several admissible Workloads with no contradiction (Path C `AMBIGUOUS`) / contradictory owner paths (Path C `CONFLICT`). |
 | `CAP-CONF-D1` | As `CAP-CONF`, with `capturedAt` on D+1 |
-| `CAP-PARTIAL` | Captured, K1, day D, completeness not `COMPLETE`; P1 absent |
+| `CAP-PARTIAL` | The same source as `CAP-A` with `completeness.status: PARTIAL` and P1 omitted. It is **rejected at import** (`REJECTED_INVALID` / `K8S_SNAPSHOT_INCOMPLETE`, `validate_kubernetes_snapshot`), the committed state is preserved, and it is **never a selected capture** (L29). |
 
 Result kinds:
 - **ingestion:** the matrix §15.1 result, visible only in diagnostics and the transition report.
 - **request:** phase-1 preflight.
 - **query:** one retained v2 candidate evaluated against one selected capture, with the phase reached.
+- **import:** a Kubernetes envelope rejected by the existing v0.5 validation. It is never selectable and never evaluated for locality.
 - **answer:** the generic result when no v2 candidate exists (§15.3). **Every** no-eligible answer carries both `LOCALITY_LOCAL_COVERAGE_UNAVAILABLE` and `LOCALITY_NO_ELIGIBLE_LOCAL_OBSERVATION` (§4 interpretation 1).
 
 ## 3. Cases
@@ -230,9 +231,10 @@ I1 §8, §10.1
 | Variant | Inputs | Expected |
 |---|---|---|
 | L17a | V01; selected contribution is DECLARED_MANIFEST | **query:** `UNSUPPORTED` [`LOCALITY_CAPTURE_MODE_UNSUPPORTED`] · candidate `V01-base` on `CAP-DM`, phase 2 |
-| L17b | V01; CAP-A without a parseable capturedAt | **query:** `INSUFFICIENT_EVIDENCE` [`LOCALITY_CAPTURE_TIMESTAMP_MISSING`] · candidate `V01-base` on `CAP-A-NOTIME`, phase 3 |
+| L17b | V01; selected CAP-A-NOTIME (capturedAt present and non-empty but offset-less, so the Path C parser treats it as missing) | **query:** `INSUFFICIENT_EVIDENCE` [`LOCALITY_CAPTURE_TIMESTAMP_MISSING`] · candidate `V01-base` on `CAP-A-NOTIME`, phase 3 |
 | L17c | V01; capture as CAP-A but capturedAt on D+1; window D | **query:** `INAPPLICABLE` [`LOCALITY_CAPTURE_TEMPORAL_MISMATCH`] · candidate `V01-base` on `CAP-A-D1`, phase 3 |
 | L17d | V01 (last_seen on D); CAP-A-D1 selected; window D+1 | **query:** `INAPPLICABLE` [`LOCALITY_OBSERVATION_TEMPORAL_MISMATCH`] · candidate `V01-base` on `CAP-A-D1`, phase 3 |
+| L17e | import of an envelope whose metadata.capturedAt field is absent | import = `{"result": "REJECTED_INVALID", "diagnostic": "K8S_SNAPSHOT_INVALID", "selectable": false}`<br>locality_evaluated = `false` |
 
 **Prohibited:** positive observed caller-Workload locality; substituted or nearest capturedAt.
 
@@ -357,9 +359,10 @@ I1 §11.3
 
 | Variant | Inputs | Expected |
 |---|---|---|
-| L29a | selected capture's inventory incomplete; P1 absent from it | **query:** `UNRESOLVED` [`LOCALITY_CAPTURE_MISSING_POD`] · candidate `V01-base` on `CAP-PARTIAL`, phase 4<br>v2_retained = `true` |
+| L29a | CAP-A accepted and selected; then CAP-PARTIAL (same source, completeness.status PARTIAL, P1 omitted) is imported | import = `{"result": "REJECTED_INVALID", "diagnostic": "K8S_SNAPSHOT_INCOMPLETE", "selectable": false}`<br>selected_capture_after = `"CAP-A"`<br>committed_state_preserved = `true` |
+| L29b | after a: V01 queried against the actually selected capture | **query:** `APPLICABLE` [—] · candidate `V01-base` on `CAP-A`, phase 4 → W1<br>v2_retained = `true` |
 
-**Prohibited:** local absence inferred; removal authority widened.
+**Prohibited:** local absence inferred from the incomplete capture; removal authority widened; a rejected envelope evaluated as a selected capture.
 
 ### L30 — Intent or agent-narrative changes alone
 
