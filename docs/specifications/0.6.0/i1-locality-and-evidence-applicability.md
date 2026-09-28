@@ -1,9 +1,9 @@
 # AIP v0.6.0 I1 — Locality and Evidence Applicability Contract
 
-**Status:** Draft 0.3 — post-review canary identity, Operation roll-up, diagnostic mapping, temporal guards and exit-gate traceability; proposed increment specification, not yet accepted or authorized for implementation  
+**Status:** Accepted I1 increment specification — normative semantic scope and completion contract; I1 deliverables/conformance still require completion and I2 implementation is not claimed  
 **Release:** `v0.6.0` — Locality-Aware Current State  
 **Increment:** I1  
-**Proposed repository path:** `docs/specifications/0.6.0/i1-locality-and-evidence-applicability.md`  
+**Repository path:** `docs/specifications/0.6.0/i1-locality-and-evidence-applicability.md`  
 **Governing parent:** [Accepted v0.6.0 specification](specification.md), merged in [PR #278](https://github.com/michaelegner/architecture-intelligence-platform/pull/278), merge `be26edcd133edc8576a85d301be33b836335c41b`  
 **Entry baseline:** Published and post-release-verified `v0.5.1`.  
 **Output:** reviewed, versioned semantic contract, independent conformance cases and controlled capture plan. I2 implements the scoped ingress, persistence and assessment.
@@ -12,7 +12,7 @@
 
 ## 1. Purpose
 
-The release asks **“Where is this dependency established?”** and **“Does this relation differ by supported locality?”** I1 defines exactly which evidence can license those answers before a new read model or public endpoint is built. It freezes caller-locality vocabulary, individual interaction attribution, a proposed **v2 caller-scoped observed-evidence identity alongside the existing v1 Service-level daily evidence**, capture/time applicability, refusals and an early real-capture acquisition plan. Here v1/v2 name evidence-identity generations, not AIP releases or REST/MCP API versions (§2.1).
+The release asks **“Where is this dependency established?”** and **“Does this relation differ by supported locality?”** I1 defines exactly which evidence can license those answers before a new read model or public endpoint is built. It freezes caller-locality vocabulary, individual interaction attribution, a versioned **v2 caller-scoped observed-evidence contract alongside the existing v1 Service-level daily evidence**, capture/time applicability, refusals and an early real-capture acquisition plan. Here v1/v2 name evidence-identity generations, not AIP releases or REST/MCP API versions (§2.1).
 
 > A positive caller-local `CALLS` is established from the Resource of the **actual CLIENT interaction**, matched to a time-compatible captured Pod/owner chain in one selected snapshot—not inferred from the Service's general deployment association or a same-Service Pod observation.
 
@@ -20,7 +20,7 @@ I1 SHALL provide testable contractual inputs and independently authored expected
 
 ## 2. Normative authority and baseline
 
-MUST, MUST NOT, SHALL, SHALL NOT, SHOULD and MAY are normative. The [accepted parent](specification.md), especially §§3–9, 11, 15–16, 20–24, 30, 33–34, controls the outcome. This draft proposes concrete I1 freeze choices; changing a proposed literal field or ID format in review cannot weaken the parent. Independent expected facts shall be authored **before** running AIP, not copied from implementation output.
+MUST, MUST NOT, SHALL, SHALL NOT, SHOULD and MAY are normative. The [accepted parent](specification.md), especially §§3–9, 11, 15–16, 20–24, 30, 33–34, controls the outcome. This accepted I1 specification fixes the semantic choices and review boundaries for its subsequent deliverables. Exact schema/serialization vectors, capture acquisition artifacts and independently expected conformance results must still be frozen and verified in I1 before I2 implementation; any amendment to an implementation-level spelling cannot weaken the accepted parent. Independent expected facts shall be authored **before** running AIP, not copied from implementation output.
 
 | Baseline mechanism | Proven current behaviour / consequence |
 |---|---|
@@ -280,7 +280,7 @@ No historical snapshot store is introduced. A file kept externally after its con
 
 ## 10. Applicability dispositions and diagnostics
 
-The following is the **proposed internal I1 taxonomy**; I3 subsequently maps it to its versioned public answer schema. A result is machine-visible, stable under ordering and carries one disposition, ordered distinct reasons and bounded sanitized source/capture references.
+The following is the **I1 internal taxonomy**; I3 subsequently maps query-time dispositions to its versioned public answer schema. Ingestion-only diagnostic codes and query-visible limitations have different reachability (§10.2). A scoped query result is machine-visible, stable under ordering and carries one disposition, ordered distinct reasons and bounded sanitized source/capture references.
 
 | Disposition | Meaning | Example |
 |---|---|---|
@@ -292,7 +292,7 @@ The following is the **proposed internal I1 taxonomy**; I3 subsequently maps it 
 | `CONFLICT` | Known compatible identity inputs disagree | CLIENT cluster UID and captured envelope cluster UID differ. |
 | `UNSUPPORTED` | Dimension, relation, source interpretation or temporal precision is not admitted | Region/tenant, local messaging or sub-day window. |
 
-Proposed structured diagnostic codes to review and freeze:
+Internal diagnostic codes (subject to the §10.2 visibility boundary):
 
 ```text
 LOCALITY_CLIENT_IDENTITY_MISSING
@@ -320,9 +320,9 @@ LOCALITY_NO_ELIGIBLE_LOCAL_OBSERVATION
 LOCALITY_LOCAL_COVERAGE_UNAVAILABLE
 ```
 
-### 10.1 Proposed deterministic cause-to-disposition contract
+### 10.1 Phase-gated cause-to-disposition contract
 
-`LOCALITY_NO_ELIGIBLE_LOCAL_OBSERVATION` is *not an absence claim*. Use existing v0.5 public deployment-resolution codes unchanged on existing surfaces. The following cause mapping is proposed as an I1 freeze decision, not left to I2 implementation convenience:
+`LOCALITY_NO_ELIGIBLE_LOCAL_OBSERVATION` is *not an absence claim*. Use existing v0.5 public deployment-resolution codes unchanged on existing surfaces. The following cause mapping binds the I1 contract; individual ingestion-only reasons are recorded in diagnostics/reports but are not reconstructed by an unrelated read-side v1 bucket (§10.2):
 
 | Phase and exact cause | Locality disposition | Stable reason / treatment |
 |---|---|---|
@@ -343,9 +343,24 @@ LOCALITY_LOCAL_COVERAGE_UNAVAILABLE
 | Contradictory current owner paths / known identity assertions | `CONFLICT` | `LOCALITY_POD_OWNER_CONFLICT`; do not collapse into `AMBIGUOUS` or `UNRESOLVED`. |
 | No eligible local CALLS / no admitted Workload-level coverage | `INSUFFICIENT_EVIDENCE` | `LOCALITY_NO_ELIGIBLE_LOCAL_OBSERVATION` / `LOCALITY_LOCAL_COVERAGE_UNAVAILABLE`; never local `NOT_OBSERVED_IN_WINDOW`. |
 
-**Evaluation and multiple causes:** validate unsupported *requests* first; evaluate each candidate's known source/environment/time applicability before its capture/owner identity; evaluate ingestion eligibility separately from later query-snapshot checks. Do not report a conflict about a candidate already known outside the selected requested scope as a supported in-scope claim. For one candidate and phase, retain **all independently supported reason codes**, deduplicate and sort lexicographically; one primary disposition is chosen deterministically using `CONFLICT > AMBIGUOUS > INAPPLICABLE > UNRESOLVED > INSUFFICIENT_EVIDENCE > APPLICABLE` among the applicable evaluated causes. `UNSUPPORTED` belongs to request/source-mode preflight, not a way to downgrade a real in-scope conflict. Other excluded candidates remain individually represented, not hidden by the primary outcome. The reason codes are not proof that every missing attribute was examined when an earlier gate rejected a candidate. The exact phase/cause table and precedence are normative **once reviewed as I1**, while I3 remains responsible for their public wire mapping.
+**Evaluation is phase-gated and short-circuits.** First evaluate the original CLIENT/accepted-CALLS input at **ingestion** (which may refuse v2 and emit an ingestion diagnostic under §10.2). For each later **query-time** candidate with independently retained v2 evidence, evaluate in this strict order:
 
-A Path C `AMBIGUOUS`, `CONFLICT` or `UNRESOLVED` status shall retain its source-specific evidence and reason, including when the new locality projection abstains. No Service identity is ever changed by name matching or by extracting a narrower scope, and an existing v0.5 refusal cannot be converted to positive locality. Add negative cases to the independently authored dossier for missing carrier versus missing field and for ingestion-known versus capture-known contradictions.
+1. **Request preflight:** an unsupported requested relation, locality dimension or time resolution terminates the request as `UNSUPPORTED`.
+2. **Selected source/evidence mode:** for that candidate, `DECLARED_MANIFEST` rather than an admissible `CAPTURED_RESOURCE` terminates as `UNSUPPORTED` / `LOCALITY_CAPTURE_MODE_UNSUPPORTED`. This is a **per-candidate terminal disposition**, not solely a request-level preflight.
+3. **Exact environment and temporal applicability:** evaluate available accepted-v2 environment, scoped bucket `last_seen`, real selected capture `capturedAt` and whole-day bounds. Known mismatch terminates as `INAPPLICABLE`; missing required temporal proof terminates as `INSUFFICIENT_EVIDENCE`. Do **not** continue to assess owner identity after a candidate has failed this phase.
+4. **Matching captured Pod and owner identity:** only a candidate passing phases 1–3 can be resolved as `APPLICABLE`, `UNRESOLVED`, `AMBIGUOUS` or `CONFLICT` under the exact §9/Path C guards.
+
+**Primary disposition is taken from the first terminating phase**, never from a global cross-phase severity ranking. Within that reached phase, retain every independently established diagnostic reason, deduplicate and sort lexicographically; if several causes in **that same phase** require a primary choice, use `CONFLICT > AMBIGUOUS > INAPPLICABLE > UNRESOLVED > INSUFFICIENT_EVIDENCE > APPLICABLE`. `UNSUPPORTED` is terminal in phase 1 or 2, so it is never missing from or overridden by a severity ranking for phase 3/4. A day-D v2 observation with an explicitly selected day-D+1 capture and a day-D-only query yields temporal `INAPPLICABLE`, **even if that capture's owner chain is contradictory**; no in-scope `CONFLICT` is asserted. Other excluded candidates remain separately visible with their phase, limitations and enumeration coverage, not hidden by the primary outcome. Never invent reasons for later phases that were not evaluated. I3 owns the public mapping but not permission to reorder these semantic gates.
+
+### 10.2 Ingestion-refusal visibility and query abstention
+
+**Selected contract: ingestion-only specific diagnostics; no new persisted refusal-fact family.** If the original CLIENT/accepted-CALLS ingress fails its v2 eligibility checks (SERVER_ONLY, missing CLIENT carrier/Pod UID/cluster UID, CLIENT/fact environment or UTC-day mismatch, CLIENT-internal contradiction), the accepted interaction retains its existing v1 handling and **no v2 record is written**. Emit the specific §10.1 reason code in bounded, sanitized ingestion diagnostics and a versioned per-source import/migration report with reason/count/source revision. Those diagnostics/reports are operational artifacts, **not** extra canonical architecture evidence, public per-interaction refusal records or snapshot inputs. I2 SHALL specify their bounds/retention and report availability without introducing a second refusal persistence model by implication.
+
+At query time, an unscoped v1 bucket **cannot establish which individual events were refused or why**. The new locality answer reports `INSUFFICIENT_EVIDENCE` with generic `LOCALITY_NO_ELIGIBLE_LOCAL_OBSERVATION` and, as relevant, `LOCALITY_LOCAL_COVERAGE_UNAVAILABLE`; `LOCALITY_LEGACY_V1_UNSCOPED` may be included **only where legacy-only source/inventory status is independently known**. It MUST NOT expose any specific ingress rejection code as if reconstructed from the aggregate, imply that every v1 contribution was refused, or silently invent a positive locality. The import/migration report can disclose the specific ingestion cause **in its own reporting surface**, without promoting that report to architecture evidence. If v2 exists for some events in a mixed v1 bucket, only those separately retained v2 records license local positive answers; the rest remain unscoped without a fabricated per-event explanation.
+
+Query-time failures **after** a valid v2 record exists (selected source mode, capture time, namespace/cluster/owner ambiguity or contradiction) retain v2 Pod evidence unchanged and produce the specific §10.1 query disposition/reasons where known.
+
+A Path C `AMBIGUOUS`, `CONFLICT` or `UNRESOLVED` status shall retain its source-specific evidence and reason, including when the new locality projection abstains. No Service identity is ever changed by name matching or by extracting a narrower scope, and an existing v0.5 refusal cannot be converted to positive locality. The independent dossier tests missing carrier versus specific missing fields, ingestion-report visibility versus generic read-side v1 abstention, and known ingestion versus capture-time contradictions.
 
 ## 11. Provenance, source lifecycle, conditional snapshot identity and cost
 
@@ -439,9 +454,11 @@ Before I2 implementation, I1 SHALL freeze source evidence and expected result fo
 | L32 | Two observed Operations of one canonical provider Service, plus missing/ambiguous Operation owner negative | Per-Operation qualification and deduplicated evidence refs remain distinct; I3 grouping may derive one logical provider dependency only from uniquely owned positive Operations, with no cross-Operation false `CONFIRMED`. |
 | L33 | Two ReplicaSets' Pods under **one** Deployment versus two distinct Deployment objects | Two v2 Pod keys in either case; **one** Workload locality in first case, two potentially evidenced localities only in second. |
 | L34 | CLIENT Resource passes ingestion guards but selected capture has contradictory namespace/cluster; versus CLIENT-internal contradiction | The first retains v2 Pod-bound evidence and gives query-time `CONFLICT`; the second refuses v2 at ingestion, with v1 unchanged. |
-| L35 | SERVER_ONLY, absent CLIENT carrier, specific missing Pod/cluster fields, Path C ambiguous owners and known conflict | Deterministic §10.1 cause/disposition mapping; generic missing-carrier code and specific missing-field codes never emitted redundantly. |
+| L35 | SERVER_ONLY, absent CLIENT carrier, missing CLIENT Pod/cluster, known ingress environment/day mismatch or CLIENT contradiction, plus valid v2 with Path C ambiguous/conflicting owners | Specific refusal reasons appear only in ingestion diagnostics/migration reports when no v2 is written; read-side v1-only answer is generic `INSUFFICIENT_EVIDENCE`/`LOCALITY_NO_ELIGIBLE_LOCAL_OBSERVATION` (with known legacy-only tag only when independently evidenced). Valid v2 retains specific query-time `AMBIGUOUS`/`CONFLICT`. Never double-emit generic carrier-missing and specific field-missing. |
+| L36 | v2 event `last_seen` day D, selected capture `capturedAt` day D+1, requested day D; captured owner chain would also conflict | Phase 3 short-circuits at `INAPPLICABLE`/`LOCALITY_CAPTURE_TEMPORAL_MISMATCH`; owner identity is not evaluated or presented as in-scope `CONFLICT`. |
+| L37 | Selected candidate has only `DECLARED_MANIFEST` and contradictory-looking owner data | Phase 2 gives candidate `UNSUPPORTED`/`LOCALITY_CAPTURE_MODE_UNSUPPORTED`; no phase-4 owner assertion or invented observed locality. |
 
-Golden ID vectors (including L01–L35 after this review) must be evaluated under input permutation and clean replays; source/mapping/reconciliation cases must be independently expected, not self-oracled. I4 later runs the exact final candidate twice from clean state and tests service/REST/MCP semantic parity. I1 shall not claim those later tests passed.
+Golden ID vectors (including L01–L37) must be evaluated under input permutation and clean replays; source/mapping/reconciliation cases must be independently expected, not self-oracled. I4 later runs the exact final candidate twice from clean state and tests service/REST/MCP semantic parity. I1 shall not claim those later tests passed.
 
 ## 14. Contract deliverables and bounded slices
 
@@ -451,7 +468,7 @@ Proposed supporting files under `docs/specifications/0.6.0/` (I1 may consolidate
 i1-locality-and-evidence-applicability.md    # this spec after review
 i1-locality-support-matrix.md                # dimension × evidence × claim kind
 i1-scoped-evidence-v2-contract.md            # key/serialization/replay/migration/snapshot
-i1-conformance-dossier.md                   # independent L01–L35 truth and ID vectors
+i1-conformance-dossier.md                   # independent L01–L37 truth and ID vectors
 i1-capture-acquisition-runbook.md           # actual capture plan, owner, I2 rehearsal
 i1-completion-record.md                     # exact revision, accepted choices and I2 handoff
 ```
@@ -462,15 +479,15 @@ i1-completion-record.md                     # exact revision, accepted choices a
 | I1.2 | Scope/UTC-day/CLIENT field and disposition contract | Exact normalization, allowlist and negative tests frozen. |
 | I1.3 | v2 canonical key, transition, replay, conditional snapshot/retention contract | Independently authored ID vectors and no-v2 golden-pin test specification. |
 | I1.4 | Real controlled reference acquisition plan | Named owner, cluster/Pod/capture fields, rollout-overlap timing, replay/teardown and I2 rehearsal steps. |
-| I1.5 | Independent conformance review and handoff | L01–L35 expected dossier, parent §9 exit-gate traceability, no unresolved semantic blocker, exact completion record. |
+| I1.5 | Independent conformance review and handoff | L01–L37 expected dossier, parent §9 exit-gate traceability, no unresolved semantic blocker, exact completion record. |
 
 I1 may include pure contract validators/golden-vector scripts, but SHALL NOT silently absorb I2's storage, new graph writes, public APIs, or release-demo implementation. Documentation-only PRs need no claimed application test run.
 
-## 15. Draft decisions requiring I1 review
+## 15. Increment-level Contract Freeze Register
 
-The parent semantic constraints are already accepted; these I1 literal freeze proposals must be explicitly accepted **before corresponding I2 implementation and independent fixture authoring**:
+The parent and this I1 semantic scope are accepted. The following implementation-level names, exact schemas/ID vectors and conformance artifacts SHALL be frozen in reviewed I1 deliverables **before corresponding I2 implementation and independent fixture execution**. This is a contract freeze register, not a claim that I1 completion checks have already run:
 
-| Decision | Draft 0.3 proposal / parent constraint |
+| Decision | Accepted semantic constraint / required I1 freeze evidence |
 |---|---|
 | Internal version/type naming | `locality-contract/1`, role-specific typed scope and disposition; public wire contract belongs to I3. |
 | Required per-interaction Resource | Actual CLIENT environment, Pod UID, cluster UID, event timestamp; existing canonical CALLS IDs. |
@@ -480,14 +497,15 @@ The parent semantic constraints are already accepted; these I1 literal freeze pr
 | Capture owner mapping | Query-time reconciliation in selected current snapshot; removed historical Pod -> `UNRESOLVED`; Path C `AMBIGUOUS` distinct from `CONFLICT`. |
 | v1/v2 coexistence and migration | Exactly original v1 meaning plus isolated v2 when eligible; no retroactive v1 Pod backfill or double-count. |
 | Snapshot | One conditional canonical fingerprint; exact existing golden IDs on no-v2 input. |
-| Cause → disposition and multiple reasons | Freeze §10.1 stage/cause table, new `AMBIGUOUS`, deterministic phase/primary disposition and sorted distinct reasons; distinguish SERVER_ONLY, missing carrier vs Pod/cluster fields, known env mismatch and query-time contradictions. |
+| Cause → disposition and multiple reasons | Freeze §10.1 strict request → source mode → environment/time → owner phase gates, terminal per-candidate `UNSUPPORTED`, `AMBIGUOUS`, within-phase precedence and sorted reasons; prove L35–L37. |
+| Ingestion refusal diagnostics vs query visibility | §10.2 chooses bounded ingestion diagnostics and versioned source/migration reporting only, **without new persisted refusal facts**; when only v1 remains, query abstains generically and cannot reconstruct specific ingress causes (L35). |
 | Operation → Service projection | I1 preserves per-Operation status and unique canonical owning provider Service; I3 freezes bounded roll-up schema, group-level qualification display, evidence union, owner ambiguity and limits (§5.1). |
 | Observation window vs Intent | `LocalityDayContextV1` records actual Current-State observation days, never future v0.7 Intent effective interval (§4.3, parent §9.5). |
 | Local coverage | None admitted in this slice; local `NOT_OBSERVED_IN_WINDOW` forbidden. |
 | Actual capture | One cluster and **two distinct Deployment Workloads** behind one canonical caller AIP Service; one Deployment/two ReplicaSets is invalid for the positive two-locality test; I1 plan, I2 rehearsal, I5 actual overlap. |
 | Cost/retention | Account for distinct Pod UID churn; ADR 0012 still Proposed, no implicit compaction. |
 
-Any proposed alternative to the key spelling, temporal precision, replay handling, storage isolation or diagnostics must preserve the parent and appear as a reviewed amendment before I2 builds against it. Do not leave semantically important choices to implementation convenience.
+Any later alternative to the accepted scope, key distinctions, phase ordering, refusal visibility, temporal precision, replay handling, storage isolation or diagnostics must preserve the parent and appear as a reviewed amendment before I2 builds against it. Do not leave semantically important choices to implementation convenience.
 
 ## 16. I1 Definition of Done and handoff
 
@@ -496,13 +514,14 @@ I1 is complete **only** when:
 1. The versioned role/scope vocabulary and evidence/dimension/claim-kind matrix explicitly state admitted and unsupported cases, caller/target/source/claim distinction and no wildcard fallback.
 2. A testable in-batch/cross-batch CLIENT attribution contract cannot assign a relation by Service/Pod co-occurrence, name-only placement, SERVER identity or configured `DEPLOYED_AS`.
 3. Exact v2 key/golden vectors, v1/v2 coexistence, migration, clean replay and no-double-count legacy rules are frozen.
-4. Whole UTC-day timestamp/capture compatibility, including exact v2 `last_seen`/capture `capturedAt` inclusive predicates, selected-snapshot Pod churn and **deterministic §10.1 cause-to-disposition mapping** (including `AMBIGUOUS` and multiple sorted reasons), are independently covered.
+4. Whole UTC-day timestamp/capture compatibility, including exact v2 `last_seen`/capture `capturedAt` inclusive predicates, selected-snapshot Pod churn and **phase-gated §10.1 cause-to-disposition mapping** (including terminal per-candidate `UNSUPPORTED`, `AMBIGUOUS`, same-phase sorted reasons and L36–L37 early exits), are independently covered.
 5. Matching Service-scoped declaration and local observation qualify through the existing single owner, with no Workload-local coverage/negative claim invented.
 6. No-v2 legacy fingerprint and frozen golden pins, plus conditional one-snapshot v2 projection, have exact before/after expected vectors.
 7. I1 has a named acquisition owner, two distinct supported Deployment Workloads of one caller Service, Operation-accurate expected facts, required CLIENT/Kubernetes capture pins, overlap timing, clean offline replay/teardown plan and I2 early rehearsal gate.
-8. Independently authored L01–L35 results and the **parent §9 gate-to-I1 traceability matrix below** are reviewed; no semantic blocker is silently deferred, and the completion record identifies evidence/source revisions, decisions and actual check status (`NOT_RUN` when appropriate).
-9. Scope extraction never broadens an existing v0.5 refusal and never rewrites canonical Service or Operation ownership by display-name matching (§§2, 5.1, 6, 9–10); positive/negative vectors make these failures visible.
-10. Observation-day types and documentation explicitly distinguish evidence observation windows from future Intent effective intervals; Intent cannot enter local Current-State qualification (§4.3, L30).
+8. Independently authored L01–L37 results and the **parent §9 gate-to-I1 traceability matrix below** are reviewed; no semantic blocker is silently deferred, and the completion record identifies evidence/source revisions, decisions and actual check status (`NOT_RUN` when appropriate).
+9. Ingestion-only specific refusal codes remain in sanitized reports, never fabricated from unscoped v1 at query time; I2's reporting boundaries and no-extra-evidence guarantee are reviewed (§10.2; L35).
+10. Scope extraction never broadens an existing v0.5 refusal and never rewrites canonical Service or Operation ownership by display-name matching (§§2, 5.1, 6, 9–10); positive/negative vectors make these failures visible.
+11. Observation-day types and documentation explicitly distinguish evidence observation windows from future Intent effective intervals; Intent cannot enter local Current-State qualification (§4.3, L30).
 
 ### 16.1 Traceability to accepted parent §9 exit gates
 
@@ -510,9 +529,9 @@ I1 is complete **only** when:
 |---|---|---|
 | 1. Exact versioned dimension/evidence contract | §§4–5, 7, 10, 15; DoD 1/3 | Frozen support matrix, v2 ID vectors, admissibility/disposition contract. |
 | 2. Distinct caller, target, source and claim examples | §§2.1, 4–5, 12–13; DoD 1/7/8 | Operation-accurate two-Deployment case and negative target-placement tests. |
-| 3. No broader v0.5 refusal or name-based Service reidentity | §§2, 5.1, 6, 9–10, L05/L20/L26/L32; DoD 2/9 | Independent identity/refusal tests; no guessed Service/Operation owner. |
-| 4. Machine-visible missing/conflict/unsupported/time dispositions | §§8–10, 13/15; DoD 4/8 | Frozen cause/reason table incl. `AMBIGUOUS` and day-D/day-D+1 negative. |
-| 5. Observation window differs from future Intent effective interval | §4.3, §8, L30; DoD 10 | Separate typed semantics, never Current-State derivation from Intent. |
+| 3. No broader v0.5 refusal or name-based Service reidentity | §§2, 5.1, 6, 9–10, L05/L20/L26/L32; DoD 2/10 | Independent identity/refusal tests; no guessed Service/Operation owner. |
+| 4. Machine-visible missing/conflict/unsupported/time dispositions | §§8–10.2, 13/15; DoD 4/8/9 | Phase-gated cause/reason table incl. `AMBIGUOUS`, phase-2 source-mode `UNSUPPORTED`, day-D/day-D+1 early exit, and ingestion-report versus generic read-side visibility. |
+| 5. Observation window differs from future Intent effective interval | §4.3, §8, L30; DoD 11 | Separate typed semantics, never Current-State derivation from Intent. |
 | 6. Runtime identity positive versus name/co-location negative | §§6, 9, 12–13, L15/L26/L33; DoD 2/7/8 | Actual CLIENT + capture path and one-Deployment/ReplicaSet rejection. |
 | 7. v1/v2 identity/migration/replay/cross-batch/day/retention | §§6–8, 11, 13/15; DoD 3/4/6/8 | Golden v2 IDs, frozen no-v2 fingerprint, coexistence, ADR 0012/cardinality handoff. |
 | 8. Selected-snapshot Pod churn and executable real capture plan | §§9, 12–13, L18/L27/L31; DoD 4/7/8 | Distinct Deployment overlap, matching CLIENT/capture cluster UID, capturedAt, revision pins and I2 rehearsal plan. |
