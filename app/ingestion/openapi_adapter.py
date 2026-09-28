@@ -6,6 +6,7 @@ from app.ingestion._shared import (
     rejected_outcome_for_identity,
     rejected_outcome_for_reference_error,
     resolve_and_normalize_schema,
+    resolved_service_id,
     schema_display_name,
     semantic_input_digest_bytes,
     upsert_schema_or_conflict,
@@ -129,7 +130,7 @@ class OpenApiSourceAdapter:
         operations: list[Operation] = []
         relations: list[Relation] = []
         schemas_by_id: dict[str, Schema] = {}
-        resolved_service_ids: set[str] = {root_resolution.service_id}
+        resolved_service_ids: set[str] = {resolved_service_id(root_resolution)}
         any_uninterpreted_composition = False
 
         def resolve_schema(
@@ -209,10 +210,10 @@ class OpenApiSourceAdapter:
                     )
                     if resolution.outcome is not ServiceIdentityOutcome.RESOLVED:
                         return rejected_outcome_for_identity(resolution)
-                    canonical_service_id = resolution.service_id
+                    canonical_service_id = resolved_service_id(resolution)
                     resolved_service_ids.add(canonical_service_id)
                 else:
-                    canonical_service_id = root_resolution.service_id
+                    canonical_service_id = resolved_service_id(root_resolution)
 
                 operation_id_value = ids.operation_id(canonical_service_id, method, path)
 

@@ -42,9 +42,18 @@ class ServiceIdentityOutcome(StrEnum):
 
 @dataclass(frozen=True)
 class ServiceIdentityResolution:
+    """`service_id` is set exactly when `outcome` is RESOLVED. This is enforced here because
+    `app.sources.registry.ServiceIdentityResolver` is a Protocol that any resolver can implement,
+    and adapters build canonical ids from `service_id` - an inconsistent resolution must
+    fail at construction, not mint an id such as `operation:None:...`."""
+
     outcome: ServiceIdentityOutcome
     service_id: str | None
     diagnostics: tuple[IngestionDiagnostic, ...]
+
+    def __post_init__(self) -> None:
+        if (self.outcome is ServiceIdentityOutcome.RESOLVED) != (self.service_id is not None):
+            raise ValueError("service_id must be set exactly when the outcome is RESOLVED")
 
 
 def resolve_service_identity(

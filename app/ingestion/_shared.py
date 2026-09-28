@@ -42,6 +42,13 @@ _IDENTITY_OUTCOME_TO_RESULT = {
 }
 
 
+def resolved_service_id(resolution: ServiceIdentityResolution) -> str:
+    """The service id of a RESOLVED resolution (the caller has already checked the outcome)."""
+    # ServiceIdentityResolution rejects a RESOLVED outcome without a service_id at construction.
+    assert resolution.service_id is not None
+    return resolution.service_id
+
+
 def rejected_outcome_for_identity(resolution: ServiceIdentityResolution) -> AdapterOutcome:
     return AdapterOutcome(
         result=_IDENTITY_OUTCOME_TO_RESULT[resolution.outcome],

@@ -70,6 +70,7 @@ from app.sources.migration_mappings import (
 from app.sources.model import (
     NOT_SUPPLIED,
     DiagnosticCode,
+    DiscoveryScopeId,
     FilesystemSourceConfig,
     IngestionDiagnostic,
     IngestionResult,
@@ -585,7 +586,7 @@ def _build_inventory_snapshot(
 
     discovered_source_ids = tuple(sorted(source_outcomes.keys()))
     revision = inventory_revision(
-        discovery_scope_id=discovery_scope_id,
+        discovery_scope_id=DiscoveryScopeId(discovery_scope_id),
         scope_definition_digest=scope_definition_digest,
         source_instance_ids=discovered_source_ids,
         tombstones=in_scope_tombstones,

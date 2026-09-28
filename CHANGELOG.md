@@ -12,9 +12,16 @@ aren't yet guaranteed stable pre-1.0.
 ### Added
 
 - Static type checking: `uv run pyright` (standard mode) now runs in CI's `quality` job over
-  `app/canonical`, `app/architecture_intelligence`, `app/graph` and `app/sources`, with the other
-  packages to follow one at a time. Existing type errors in those packages were fixed without
-  behavior changes.
+  `app/canonical`, `app/architecture_intelligence`, `app/graph`, `app/ingestion` and
+  `app/sources`, with the other packages to follow one at a time. Existing type errors in those
+  packages were fixed without behavior changes, except the one listed under Changed.
+
+### Changed
+
+- `ServiceIdentityResolution` now rejects, at construction, a `RESOLVED` outcome without a
+  `service_id` (and a rejected outcome with one). Every built-in resolver already complied; a custom
+  `ServiceIdentityResolver` returning an inconsistent resolution now fails loudly instead of
+  producing canonical ids such as `operation:None:...`.
 
 ## [0.5.1] - 2026-09-27
 

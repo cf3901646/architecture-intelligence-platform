@@ -1,6 +1,6 @@
 from app.canonical import ids
 from app.canonical.model import ArchitectureModel, Relation
-from app.ingestion._shared import rejected_outcome_for_identity
+from app.ingestion._shared import rejected_outcome_for_identity, resolved_service_id
 from app.provenance.model import Provenance
 from app.sources.identity import semantic_input_digest
 from app.sources.jcs import canonical_json_bytes
@@ -71,7 +71,7 @@ class ManifestSourceAdapter:
         )
         if root_resolution.outcome is not ServiceIdentityOutcome.RESOLVED:
             return rejected_outcome_for_identity(root_resolution)
-        caller_service_id = root_resolution.service_id
+        caller_service_id = resolved_service_id(root_resolution)
 
         # v0.5.0 I5 finding F1: the manifest declares CALLS from its caller, but never the caller
         # Service itself - that comes from a phase-0 source (the caller's own OpenAPI/AsyncAPI).

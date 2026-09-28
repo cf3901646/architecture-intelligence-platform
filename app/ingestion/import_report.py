@@ -41,6 +41,7 @@ from app.graph.importer import (
     ClaimEffectSet,
     EmittedCounts,
     ImportRunStats,
+    SourceClaimEffects,
     SourceImportStats,
     SourceRunResult,
 )
@@ -397,12 +398,16 @@ def _effect_set(effects: ClaimEffectSet) -> ReportEffectSet:
 def _effects(stats: SourceImportStats | None) -> ReportEffects | None:
     if stats is None or stats.effects is None:
         return None
+    return _report_effects(stats, stats.effects)
+
+
+def _report_effects(stats: SourceImportStats, effects: SourceClaimEffects) -> ReportEffects:
     return ReportEffects(
         graph_revision_advanced=stats.graph_revision_advanced,
-        added=_effect_set(stats.effects.added),
-        changed=_effect_set(stats.effects.changed),
-        expired=_effect_set(stats.effects.expired),
-        ownership_removed=_effect_set(stats.effects.ownership_removed),
+        added=_effect_set(effects.added),
+        changed=_effect_set(effects.changed),
+        expired=_effect_set(effects.expired),
+        ownership_removed=_effect_set(effects.ownership_removed),
     )
 
 
@@ -447,7 +452,8 @@ def build_run(configured: ConfiguredRun) -> ReportRun:
         removals=sorted(
             (
                 ReportRemoval(
-                    source_instance_id=removal.source_instance_id, effects=_effects(removal)
+                    source_instance_id=removal.source_instance_id,
+                    effects=_report_effects(removal, removal.effects),
                 )
                 for removal in stats.removal_stats
                 if removal.effects is not None

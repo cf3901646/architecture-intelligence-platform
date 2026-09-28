@@ -132,13 +132,15 @@ class KubernetesSourceAdapter:
             return refs
 
         for mapped in mapping_result.entities:
-            entities.append(mapped.entity)
+            entity = mapped.entity
+            assert entity is not None  # `entities` keeps only resources promoted to an entity
+            entities.append(entity)
             # One evidence id per (entity, contributing file) - §6: "source pointers remain
             # provenance and are sorted when multiple files represent one object."
-            entity_evidence_refs = _mint_evidence(mapped.entity.id, mapped.source_pointers)
+            entity_evidence_refs = _mint_evidence(entity.id, mapped.source_pointers)
             contributions.append(
                 InfrastructureContribution(
-                    entity_id=mapped.entity.id,
+                    entity_id=entity.id,
                     source_instance_id=loaded.descriptor.source_instance_id,
                     evidence_mode=evidence_mode,
                     resource_semantic_digest=mapped.resource_semantic_digest,
@@ -150,11 +152,11 @@ class KubernetesSourceAdapter:
                     mapping_rule_version=self.mapping_rule_version,
                 )
             )
-            if mapped.entity.entity_kind is InfrastructureEntityKind.KUBERNETES_WORKLOAD:
+            if entity.entity_kind is InfrastructureEntityKind.KUBERNETES_WORKLOAD:
                 claims.append(
                     InfrastructureClaim(
                         kind=InfrastructureClaimKind.WORKLOAD_EXISTS,
-                        subject_id=mapped.entity.id,
+                        subject_id=entity.id,
                         object_id=None,
                         evidence_refs=entity_evidence_refs,
                         mapping_rule_id=self.adapter_identity,

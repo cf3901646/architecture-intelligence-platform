@@ -4,6 +4,7 @@ from app.sources.service_identity import (
     PointerBinding,
     ServiceIdentityOutcome,
     ServiceIdentityPath,
+    ServiceIdentityResolution,
     is_valid_service_id,
     resolve_service_identity,
 )
@@ -226,3 +227,34 @@ def test_resolve_service_identity_binding_from_different_source_is_ignored():
     )
     assert result.outcome is ServiceIdentityOutcome.RESOLVED
     assert result.service_id == "service:order-service"
+
+
+@pytest.mark.parametrize(
+    ("outcome", "service_id"),
+    [
+        # `ServiceIdentityResolver` is a Protocol any resolver can implement; adapters build
+        # canonical ids from `service_id`, so a RESOLVED outcome without one must not slip through
+        # and mint an id such as `operation:None:...`.
+        (ServiceIdentityOutcome.RESOLVED, None),
+        (ServiceIdentityOutcome.REJECTED_UNSUPPORTED, "service:orders"),
+        (ServiceIdentityOutcome.REJECTED_CONFLICT, "service:orders"),
+        (ServiceIdentityOutcome.REJECTED_INVALID, "service:orders"),
+    ],
+)
+def test_resolution_rejects_service_id_inconsistent_with_outcome(outcome, service_id):
+    with pytest.raises(ValueError, match="service_id must be set exactly when"):
+        ServiceIdentityResolution(outcome=outcome, service_id=service_id, diagnostics=())
+
+
+@pytest.mark.parametrize(
+    ("outcome", "service_id"),
+    [
+        (ServiceIdentityOutcome.RESOLVED, "service:orders"),
+        (ServiceIdentityOutcome.REJECTED_UNSUPPORTED, None),
+        (ServiceIdentityOutcome.REJECTED_CONFLICT, None),
+        (ServiceIdentityOutcome.REJECTED_INVALID, None),
+    ],
+)
+def test_resolution_accepts_service_id_consistent_with_outcome(outcome, service_id):
+    resolution = ServiceIdentityResolution(outcome=outcome, service_id=service_id, diagnostics=())
+    assert resolution.service_id == service_id

@@ -17,6 +17,7 @@ from app.ingestion._shared import (
     rejected_outcome_for_identity,
     rejected_outcome_for_reference_error,
     resolve_and_normalize_schema,
+    resolved_service_id,
     schema_display_name,
     semantic_input_digest_bytes,
     upsert_message_or_conflict,
@@ -346,7 +347,7 @@ class AsyncApiSourceAdapter:
         )
         if root_resolution.outcome is not ServiceIdentityOutcome.RESOLVED:
             return rejected_outcome_for_identity(root_resolution)
-        canonical_service_id = root_resolution.service_id
+        canonical_service_id = resolved_service_id(root_resolution)
 
         info = document.get("info") or {}
         channels = document.get("channels") or {}
@@ -513,7 +514,7 @@ class AsyncApiSourceAdapter:
             )
             # Mirrors the Queue rule: disagreeing/partial server declarations leave identity
             # AMBIGUOUS even when a configured Topic id exists.
-            if broker_and_namespace is _AMBIGUOUS_BROKER_NAMESPACE:
+            if isinstance(broker_and_namespace, _AmbiguousBrokerNamespace):
                 any_omission = True
                 diagnostics.append(
                     IngestionDiagnostic(
@@ -720,6 +721,9 @@ class AsyncApiSourceAdapter:
                 )
                 return None, None
 
+            # A subscription id comes from a mapping (whose subscription_name backs this one) or is
+            # derived, which requires a subscription_name - so the name is set here.
+            assert subscription_name is not None
             topic = topics_by_id[topic_id_value]
             subscriptions_by_id.setdefault(
                 subscription_id_value,
@@ -863,7 +867,7 @@ class AsyncApiSourceAdapter:
             # server declarations, it only supplies an id to compare a *resolved* derived id
             # against. Checked before consulting `explicit_queue_id` at all so the ambiguity can't
             # be silently papered over by treating it the same as "no derived id to compare".
-            if broker_and_namespace is _AMBIGUOUS_BROKER_NAMESPACE:
+            if isinstance(broker_and_namespace, _AmbiguousBrokerNamespace):
                 any_omission = True
                 diagnostics.append(
                     IngestionDiagnostic(
@@ -936,8 +940,8 @@ class AsyncApiSourceAdapter:
                 namespace=namespace or None,
             )
             channel_queue_id[channel_name] = queue_id_value
-            if stable_broker_id is not None:
-                channel_broker_namespace[channel_name] = (stable_broker_id, namespace)
+            if broker_and_namespace is not None:
+                channel_broker_namespace[channel_name] = broker_and_namespace
 
         # DLQ links inherit their declaring channel's resolved broker/namespace by default (§9 gives
         # no separate built-in evidence path for a DLQ target's own kind/identity) - but the target

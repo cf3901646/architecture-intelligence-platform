@@ -1,4 +1,4 @@
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 
 from app.sources.encoding import length_delimited, length_delimited_group, sha256_hex
@@ -141,7 +141,7 @@ def semantic_input_digest(
 
 
 def normalized_document_and_reference_projection_bytes(
-    documents_by_normalized_relative_path: dict[str, JSONValue],
+    documents_by_normalized_relative_path: Mapping[str, JSONValue],
 ) -> bytes:
     """I1 spec §5.3's "normalized document/reference projection" - the piece `semantic_input_digest`
     itself deliberately left as "an adapter's job": "OpenAPI/AsyncAPI roots and bounded local
