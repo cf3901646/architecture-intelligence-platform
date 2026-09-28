@@ -54,7 +54,7 @@ v1: one Service-level OrderService CALLS Operation(pricing:GET /prices) daily bu
 v2: two scoped buckets for that same Operation, one for CLIENT P1 and one for CLIENT P2
 ```
 
-Two Pod-level v2 buckets do **not** necessarily mean two Workload localities: if P1 and P2 belong to two ReplicaSets of the *same* Deployment, the v0.5 owner chain resolves both to one Workload. The positive two-locality capture (§12) must instead use **two distinct Deployment objects**. The logical provider Service shown in parentheses is derived from the canonical Operation owner for the later dependency projection (§5.1); it is **not** proof of the provider's target runtime locality.
+Two Pod-level v2 buckets do **not** necessarily mean two Workload localities: if P1 and P2 belong to two ReplicaSets of the *same* Deployment, the v0.5 owner chain resolves both to one Workload. The positive two-locality capture (§12) must instead use **two distinct Deployment objects**. The logical provider Service shown in parentheses is derived from the canonical Operation owner for the later dependency projection (§5.1); it is **not** proof of the provider's target runtime locality. Operation names shown in examples are descriptive placeholders, not a new literal canonical-ID grammar; independently pinned source inputs must supply the exact accepted canonical Operation IDs.
 
 **Coexistence, not replacement:** every newly accepted interaction continues to contribute according to existing v1 semantics. If its original CLIENT identity satisfies the scoped rules, it *also* contributes to one isolated v2 bucket. These are two representations of the **same interaction**, not two observed calls: v2 MUST NOT be counted again in existing v0.5 relation qualification, coverage, observation counts or legacy evidence arrays. Historical v1-only aggregates remain valid *unscoped* evidence; Pod attribution cannot be reconstructed from them without independently replayable original per-interaction input (§7.2). I1 freezes this contract; I2 implements it.
 
@@ -380,6 +380,9 @@ actual CLIENT from P2:
   service:orders --CALLS--> Operation legacy-pricing:GET /prices
   (canonical Operation owner: service:legacy-pricing)
 
+Operation labels here are illustrative; the runbook pins actual canonical Operation IDs
+and separately established provider ownership from accepted sources.
+
 selected captured-resource revision during rollout overlap:
   source.clusterUid == each CLIENT Resource k8s.cluster.uid
   P1 and P2 are both present with distinct captured UIDs
@@ -473,7 +476,7 @@ The parent semantic constraints are already accepted; these I1 literal freeze pr
 | Required per-interaction Resource | Actual CLIENT environment, Pod UID, cluster UID, event timestamp; existing canonical CALLS IDs. |
 | Cross-batch carrier | Extend bounded transient CLIENT carrier with original admitted Resource fields, both arrival orders; distinguish ingestion-known CLIENT contradictions from later capture inconsistencies. |
 | v2 key/ID | Version 2, fact triple, environment, UTC day, caller cluster UID and Pod UID; full SHA-256 opaque ID. |
-| UTC-day selector | Inclusive date range normalized to UTC midnight through last-day 23:59:59.999999; v0.5 datetime path unchanged. |
+| UTC-day selector / capture predicate | Inclusive date range normalized to UTC midnight through last-day 23:59:59.999999; scoped v2 `last_seen` and matching `capturedAt` each satisfy inherited inclusive Path C check; v0.5 datetime path unchanged. |
 | Capture owner mapping | Query-time reconciliation in selected current snapshot; removed historical Pod -> `UNRESOLVED`; Path C `AMBIGUOUS` distinct from `CONFLICT`. |
 | v1/v2 coexistence and migration | Exactly original v1 meaning plus isolated v2 when eligible; no retroactive v1 Pod backfill or double-count. |
 | Snapshot | One conditional canonical fingerprint; exact existing golden IDs on no-v2 input. |
@@ -498,7 +501,6 @@ I1 is complete **only** when:
 6. No-v2 legacy fingerprint and frozen golden pins, plus conditional one-snapshot v2 projection, have exact before/after expected vectors.
 7. I1 has a named acquisition owner, two distinct supported Deployment Workloads of one caller Service, Operation-accurate expected facts, required CLIENT/Kubernetes capture pins, overlap timing, clean offline replay/teardown plan and I2 early rehearsal gate.
 8. Independently authored L01–L35 results and the **parent §9 gate-to-I1 traceability matrix below** are reviewed; no semantic blocker is silently deferred, and the completion record identifies evidence/source revisions, decisions and actual check status (`NOT_RUN` when appropriate).
-
 9. Scope extraction never broadens an existing v0.5 refusal and never rewrites canonical Service or Operation ownership by display-name matching (§§2, 5.1, 6, 9–10); positive/negative vectors make these failures visible.
 10. Observation-day types and documentation explicitly distinguish evidence observation windows from future Intent effective intervals; Intent cannot enter local Current-State qualification (§4.3, L30).
 
