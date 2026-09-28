@@ -17,8 +17,10 @@ aren't yet guaranteed stable pre-1.0.
   is no longer honored.
 - Lint: ruff now also enforces flake8-bugbear, naive-datetime, blind-except, import-order,
   pyupgrade, bandit (for `app/`) and ruff's own rules.
-- Contributor tooling: a checked-in `.claude/settings.json` denies merging pull requests and
-  force-pushing for Claude Code, and allows the read-only and check commands.
+- Contributor tooling: a checked-in `.claude/settings.json` adds best-effort Claude Code deny rules
+  for the common forms of merging pull requests, force-pushing and pushing directly to `main` (not
+  a security boundary; the rule itself stays procedural), and allows the exact check commands
+  without a prompt.
 
 ### Changed
 
@@ -34,7 +36,7 @@ aren't yet guaranteed stable pre-1.0.
 ### Fixed
 
 - The runtime demo's Neo4j healthcheck (`docker-compose.demo.yml`) now has a 60s start period, so a
-  slow cold start no longer fails `mcp-demo.sh` with "container is unhealthy".
+  slow cold start doesn't fail `mcp-demo.sh` with "container is unhealthy".
 
 ## [0.5.1] - 2026-09-27
 
