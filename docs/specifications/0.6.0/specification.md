@@ -1,12 +1,12 @@
 # AIP v0.6.0 Release Specification — Locality-Aware Current State
 
-**Status:** Draft 0.1 — proposed release contract; decisions in §33 require review before increment implementation  
+**Status:** Draft 0.2 — post-review evidence, locality discovery, qualification and product-gate clarification; decisions in §33 require review before increment implementation  
 **Target release:** `v0.6.0`  
 **Release theme:** Locality-Aware Current State  
 **Entry baseline:** Published and post-release-verified `v0.5.1` (`5719738091baa701d9867726fc89c93fa80bea46`); v0.5.0 provides the underlying discovery and qualification semantics  
 **Primary outcome:** AIP can establish which supported architectural relationships hold in explicitly evidenced localities and observation contexts, and deterministically project and compare these local assessments without turning local knowledge into a universal architecture claim.  
 **Governing inputs:** [Product Doctrine and Strategic Direction](../../product-doctrine-and-strategic-direction.md), [ROADMAP.md](../../../ROADMAP.md), [v0.5.0 parent specification](../0.5.0/specification.md), [v0.5.1 specification](../0.5.1/specification.md).  
-**Source revisions consulted for this draft:** ROADMAP `5082ec45`; Product Doctrine `9c03d53e`; v0.5.0 specification `b4c0163e`; v0.5.1 specification `815fcf0a`. These are source-input identities, not an implementation baseline or release candidate.
+**Source revisions consulted for this draft:** ROADMAP `5082ec45`; Product Doctrine `9c03d53e`; v0.5.0 specification `b4c0163e`; v0.5.1 specification `815fcf0a`. Draft 0.2 also inspected the current v0.5 observed-evidence/runtime-identity implementation and proposed [ADR 0012](../../adr/0012-observed-evidence-retention.md). These are source-input identities, not an implementation baseline or release candidate.
 
 ---
 
@@ -82,23 +82,25 @@ The final candidate SHALL derive from the published `v0.5.1` baseline and retain
 
 **Important baseline limitation.** A v0.5.1 Service-level `DEPLOYED_AS` resolution is not enough by itself to attribute an individual observed HTTP or messaging interaction to that Workload. The Quarkus demo's frozen 7-second replay and disclosed operator-authored messaging overlay must not be presented as independently establishing two runtime localities, observed Kafka behavior, or a complete application topology. v0.6 qualification needs its own independently authored locality cases.
 
+**Required ingestion change.** Today `app/canonical/ids.py:observed_evidence_id` keys observed relationship evidence by environment, UTC day and subject/relation/object, without caller Pod UID. Separately, `app/telemetry/runtime_identity.py` records Service/Pod observations which do not themselves establish an interaction. Two Workloads of one Service therefore collapse into the same persisted `CALLS` bucket. Joining that bucket to a Service-level Pod observation would guess the event's origin. The positive v0.6 capability **requires per-interaction caller attribution during ingestion and versioned scoped observed evidence**, not a read-side join. Historical v1 aggregates cannot be silently reclassified as workload-local facts.
+
 ## 4. Fixed Scope Budget
 
 ### 4.1 In scope
 
 `v0.6.0` SHALL deliver:
 
-1. An explicit **locality/context applicability contract** for Current-State evidence, with minimum supported dimensions and refusal rules (§§6–8).
+1. An explicit **locality/context applicability contract**, including ingestion-time caller attribution, versioned scoped evidence/migration, minimum supported dimensions and refusal rules (§§6–8).
 2. A first-class internal **Qualified Local Evidence Assessment** semantic unit, independent of Intent (§§10–12).
 3. One bounded, deterministic **Current-State projection** over applicable local assessments, with explicit included/excluded/unknown scope, coverage, qualification, and limitations (§§13–16).
-4. A **question-specific locality answer**, suitable for asking where an existing supported relationship holds and comparing evidenced results in selected localities (§§17–19).
+4. A **question-specific locality answer**, with mandatory bounded enumeration of evidenced candidate localities and optional selected-locality comparison (§§14, 17–19).
 5. REST and negotiated-MCP exposure through the single Architecture Intelligence semantic owner, versioned contracts, and same-snapshot evidence drill-down (§18).
 6. Independent deterministic positive/negative qualification, v0.5 regression, two real-system boundary checks, a realistic developer walkthrough, and an explicit product-value/pilot disposition (§§20–25).
 7. Exact-candidate release qualification, owner-authorized publication if granted, and post-publication artifact verification (§§26–28).
 
-The minimum positive question slice SHALL demonstrate one application dependency relation (`CALLS`) scoped to the **observed caller's independently evidenced runtime locality** and differentiated across two eligible localities. It SHALL also preserve existing `DEPLOYED_AS` placement evidence as placement, not as inferred interaction. Other existing relation kinds may gain locality-aware claims **only** after their evidence, scope and qualification rules are separately specified and tested. They must otherwise remain answerable under their existing v0.5 semantics with their locality-specific limitation explicit.
+The minimum positive question slice SHALL demonstrate one application dependency relation (`CALLS`) scoped to the **observed caller's independently evidenced runtime locality** and differentiated across two eligible localities. It SHALL also preserve existing `DEPLOYED_AS` placement evidence as placement, not as inferred interaction. Other existing relation kinds may gain locality-aware claims **only** after their evidence, scope and qualification rules are separately specified and tested. They otherwise remain answerable through **unchanged v0.5 requests and responses**; unsupported locality qualification is disclosed in the **new locality answer**, not inserted as a new limitation into an existing v0.5 answer (§16).
 
-The minimum locality dimensions SHALL include the existing explicit **environment and observation window** and, for a positive differentiated case, **evidenced cluster identity and namespace/workload scope** through the admitted v0.5 Kubernetes/OTel identity chain. Region, tenant, service version, and other dimensions are candidates only when the selected source/mapping rules actually establish them; they are not universal filters supplied by convention.
+The minimum locality dimensions SHALL include the existing explicit **environment and observation window** and, for a positive differentiated case, **evidenced cluster identity and namespace/workload scope** through ingestion-time caller Pod attribution and the admitted v0.5 Kubernetes/OTel identity chain. This is an **explicit narrowing of the ROADMAP's candidate dimensions and relation coverage for the first v0.6 slice**: region, tenant, service-version-specific locality qualification, positive workload-local declared-only `CALLS`, and messaging locality are deferred unless separately specified and qualified. A namespace is not a region or tenant; service version is not a distinct Service identity. Record the narrowed surface in the support matrix and release notes. The ROADMAP's “when and only when evidence supports the dimension” rule remains authoritative.
 
 ### 4.2 Explicitly out of scope
 
@@ -151,7 +153,8 @@ The I1 contract SHALL distinguish:
 ```text
 requested scope             what the caller asked about
 source/capture scope        what the source is known to cover
-subject runtime scope       where the subject/event is evidenced
+subject runtime scope       where the caller/subject event is evidenced
+target runtime scope        where the target event/entity is independently evidenced, if at all
 claim applicability scope   where that precise assertion is supported
 projection selection scope  which supported assessments were included
 ```
@@ -166,11 +169,17 @@ Each scope dimension SHALL be supported by a named admissible evidence/mapping p
 - `service.version`: optional discriminant only if the specific runtime or declared evidence establishes it and compatible identity/rule logic is defined. A version is not a distinct AIP Service by default.
 - Other dimensions (region/tenant etc.): explicit `UNSUPPORTED` or `UNRESOLVED` for a request unless I1 records a supported source, mapping, applicability rule and negative tests. A namespace is not a region or tenant.
 
-The parent SHALL fix the minimum semantic capability; I1 SHALL freeze the actual context type, dimension keys, supported combinations and versioned schema before independent fixtures are written.
+The parent SHALL fix the minimum semantic capability; I1 SHALL freeze the actual context type, dimension keys, supported combinations and versioned schema before independent fixtures are written. The first positive scoped-observation contract is **UTC-day-granular** (§7). Existing v0.5 daily buckets retain `first_seen` and `last_seen`, not all event times: the existing inclusive `last_seen` matching rule cannot establish complete sub-day activity or inactivity.
 
 ## 7. Evidence Attribution and Temporal Compatibility
 
 A positive local claim requires **directly attributable applicable evidence**, not simply a successful relationship query plus a separate Service placement. For the minimum local HTTP `CALLS` case, the observed caller's OTel Resource and the v0.5 Pod-UID → Pod → owner-chain/Workload linkage (including compatible environment/time/captured resource identity) SHALL justify the claimed caller locality. A configured or explicit Service–Workload binding by itself does not assign an individual HTTP event to that Workload. Target locality SHALL be left unknown unless separately evidenced; a caller in namespace A can call a target in namespace B.
+
+**Ingestion and scoped evidence identity are part of v0.6.** For the minimum `CALLS` slice, carry the actual **CLIENT span's** bounded caller Resource/Pod-UID identity through correlation (including cross-batch cases) into the resolved fact **before aggregation**. Preserve the existing SERVER-sourced route/method and v0.5 correlation/qualification guards. Do not store raw spans or arbitrary resource attributes. Persist separately identifiable scoped observed evidence with a deterministic **v2 key** distinguishing environment, UTC day, canonical subject/relation/object and exact caller Pod identity (including accepted cluster identity as needed to avoid collisions), under an explicit identity/canonicalization version. I1 freezes exact key, normalization and ambiguity/conflict treatment. The same-Service runtime identity observation is not a substitute for this per-event attribution. Missing/incompatible caller identity leaves an unscoped v1 observation but mints no workload-local claim.
+
+**Migration and compatibility:** preserve the existing v1 observed-evidence path and v0.5 unscoped semantics. New ingestions may write both a v1 contribution and a separate v2 scoped contribution, but v2 MUST NOT be counted again in v0.5 relation qualification, coverage, counts or public evidence arrays. Freeze storage, evidence reachability, scoped snapshot fingerprint, source/normalization lineage, idempotent replay and coexistence before implementation. Existing historical v1 aggregates cannot be backfilled to positive Pod locality without independently replayable original per-interaction evidence. A versioned transition/migration report SHALL distinguish legacy unscoped evidence from scoped evidence; raw-trace restoration and historical trajectories are not required.
+
+**Temporal support:** the minimum positive scoped `CALLS` contract SHALL support only complete UTC-calendar-day observation windows, with exact inclusive boundary canonicalization frozen in I1. A finer request receives a machine-visible unsupported-resolution disposition, not a negative architecture assertion. Evidence supports locality at the actual accepted event/capture context, never continuous presence throughout a bucket. Existing v0.5 `last_seen` window semantics remain unchanged. Later finer granularity needs separately reviewed timestamp-preserving evidence/matching rules. Proposed ADR 0012 is not implemented merely by adding locality.
 
 The assessment SHALL preserve:
 
@@ -184,7 +193,7 @@ supported locality dimensions and any unsupported/missing dimensions
 qualification and limitations
 ```
 
-An offline Kubernetes manifest is declared infrastructure input, not proof that a live resource currently exists. A captured resource is evidence of the capture, not a timeless claim about cluster state. A source-level service declaration SHALL NOT be silently made region-specific merely because a Service has a Workload in a region. Partial or incompatible time context cannot be repaired by nearest-window matching. `NOT_OBSERVED_IN_WINDOW` retains v0.5 coverage semantics and never means verified local absence.
+An offline Kubernetes manifest is declared infrastructure input, not proof that a live resource currently exists. A captured resource is evidence of the capture, not a timeless claim about cluster state. A source-level service declaration SHALL NOT be silently made region-specific merely because a Service has a Workload in a region. Such a declaration may contribute as separately labelled source/Service-level evidence to qualification of an independently observed local call under §11; it never thereby becomes a Workload-authored or Workload-exclusive declaration. Partial or incompatible time context cannot be repaired by nearest-window matching. `NOT_OBSERVED_IN_WINDOW` retains v0.5 coverage semantics and never means verified local absence.
 
 ## 8. Source Scope, Identity, and Conflict Rules
 
@@ -193,7 +202,7 @@ I1 SHALL freeze an evidence applicability table per admitted claim kind and dime
 | Evidence or existing fact | What v0.6 may support | What it cannot support alone |
 |---|---|---|
 | OpenAPI declaration | Service/operation declaration under the source's evidenced scope | Operation observed in a particular runtime Workload |
-| OTel HTTP CLIENT observation with resolved Service and admissible scope | Observed direct `CALLS` in that caller's supported runtime scope | Target co-location, causal multi-hop path or source-independent global dependency |
+| Ingestion-time attributable OTel HTTP CLIENT observation with v2 scoped evidence | Observed direct `CALLS` in that caller's supported runtime scope | Target co-location, causal multi-hop path or source-independent global dependency |
 | Kubernetes Workload/Pod capture and owner chain | Captured infrastructure identity and bounded placement scope | An application `CALLS`, `SENDS`, or `PUBLISHES_TO` relationship |
 | Existing `DEPLOYED_AS` resolution | Supported Service–Workload association with its exact evidence mode | Attribution of all Service interactions to that Workload |
 | Configured mapping | The exact mapped identity association and its versioned provenance | Runtime behavior or live placement beyond the source's own evidence |
@@ -212,7 +221,8 @@ I1 is complete when:
 3. scope extraction never broadens a v0.5 refusal or changes a Service identity by name;
 4. missing, conflicting, unsupported and temporally incompatible locality evidence have deterministic machine-visible dispositions;
 5. the distinction between observation window and future Intent effective interval is explicit in types and documentation;
-6. its independently authored examples include a runtime-identity attribution case and a name/co-location-only rejection.
+6. its independently authored examples include a runtime-identity attribution case and a name/co-location-only rejection;
+7. the v1/v2 observed-evidence identity, migration/coexistence/replay and public reachability rules, per-event cross-batch attribution, UTC-day window support and ADR 0012 cost/retention implications are frozen and testable.
 
 ---
 
@@ -236,7 +246,7 @@ QualifiedLocalEvidenceAssessment(
 )
 ```
 
-The implementation MAY be a deterministic read-side projection over existing persisted evidence. No new materialized Neo4j label or stored `LOCAL_ASSESSMENT` edge is mandated. Such a choice needs an explicit ownership, expiry, replay, and snapshot decision, not a convenience write.
+**I2 relies on the new v2 scoped evidence emitted by I1 (§7)**: existing v1 fact buckets and independent `RuntimeIdentityObservation` records cannot establish a local interaction through a read-side Service/Pod join. Once v2 evidence exists, the *assessment* MAY be a deterministic read-side projection over it. No materialized `LOCAL_ASSESSMENT` node/edge is mandated. Scoped evidence storage needs explicit ownership, replay, expiration, snapshot and reachability rules; materializing an assessment separately needs its own reviewed ownership/expiry/snapshot decision.
 
 **No `applicable_intent`, policy result, or migration decision belongs in this unit.** Changing future Intent artifacts while Current-State evidence/context/identity/rules are held fixed SHALL not change the resulting Current State.
 
@@ -256,11 +266,13 @@ Supported: A→B is established in A; A→C is established in B.
 Not supported: A→B is absent in B; A→C is absent in A.
 ```
 
-Source-derived declaration evidence whose applicability cannot be localized remains a source-scoped declaration, not a manufactured declared-in-every-locality claim. `NOT_OBSERVED_IN_WINDOW` SHALL be accompanied by correct scope-specific coverage and exclusion limits. A locally unsupported/unresolved evidence path must stay visible even if another scope is fully supported.
+**Declared-evidence applicability (frozen minimum `CALLS` rule):** an accepted, currently applicable Service/operation-level declaration is admissible **as source/Service-scoped declared evidence** for an independently observed and exactly matching local `CALLS`, subject to the existing v0.5 identity, source-inventory and operation-matching guards. Thus an observed scoped call with matching declaration is `CONFIRMED`; without one it is `OBSERVED_ONLY`. Only the observed event is Workload-local; `CONFIRMED` does not assert that the declaration was authored for, or exclusively applies to, that Workload. A declared-only Service-level relation creates **no positive Workload-local call**. I1/I2 SHALL test applicable and inapplicable declaration provenance explicitly and reuse the single v0.5 qualification owner on scoped input rather than fork its status algorithm.
+
+`NOT_OBSERVED_IN_WINDOW` MAY be emitted for a local relation only when the declaration and independently supported **local** coverage inputs satisfy the existing qualification rule. Service-wide coverage cannot masquerade as Workload coverage. Where no eligible local event or local coverage is established, the new answer returns **not established from available local evidence** with unknown/insufficient coverage, never verified absence. A locally unsupported/unresolved path stays visible even if another scope is fully supported. Historical v1-only observations are unscoped, not positive v2 evidence.
 
 ## 12. I2 Exit Gates
 
-I2 is complete when one pinned-snapshot input yields reproducible local assessments for two evidenced localities, with a complete lineage to source, identity/mapping, observation and qualification rules. Same-locality disagreements remain visible; different supported localities can coexist. Repeating, reordering, reimporting, and source removal follow the pre-existing deterministic lifecycle guarantees. Changing only one locality's applicable evidence cannot silently change another locality's result, other than by an explicitly justified shared identity/rule/snapshot dependency recorded in lineage.
+I2 is complete when one pinned-snapshot input yields reproducible local assessments for two evidenced localities, with a complete lineage to source, identity/mapping, observation and qualification rules. Same-locality disagreements remain visible; different supported localities can coexist. Repeating, reordering, reimporting, and source removal follow the pre-existing deterministic lifecycle guarantees, including v1/v2 coexistence without double-counting and deterministic scoped-evidence replay. Changing only one locality's applicable evidence cannot silently change another locality's result, other than by an explicitly justified shared identity/rule/snapshot dependency recorded in lineage.
 
 ---
 
@@ -281,7 +293,7 @@ observation context / window
 projection completeness and truncation/selection limits
 ```
 
-“Complete” MUST be defined relative to a specified **evaluated input inventory and requested selection**, not interpreted as proof that the system has no unknown services, dependencies, other localities or unobserved traffic. A scope filter returning no supported claims is not a verified negative architecture assertion.
+“Complete” MUST be defined relative to a specified **evaluated input inventory, its bounded evidenced-locality enumeration and the requested selection**, not interpreted as proof that the system has no unknown services, dependencies, other localities or unobserved traffic. A scope filter returning no supported claims is not a verified negative architecture assertion.
 
 Projection SHALL NOT strengthen a claim merely by combining it with other locally supported claims. New cross-boundary or system-level architectural claims require their own applicable evidence, temporal/identity compatibility and qualification rule. In particular:
 
@@ -332,7 +344,7 @@ An evidence request for a claim SHALL resolve under the **same snapshot**; misma
 
 Existing unscoped dependency/drift/deployment requests keep their v0.5 meaning, including published qualification statuses and existing `DEPLOYED_AS` resolution methods. I3 SHALL not silently relabel a globally requested service-level claim as local, reinterpret deployment as an application dependency, or turn the existing drift endpoint into future Intent-vs-Current assessment. Where new scoped request parameters are admitted, their absence SHALL preserve existing behavior unless a reviewed versioned compatibility change is required and documented.
 
-`DEPLOYED_AS` remains a Service–Workload identity relation; a locality-aware answer MAY cite it as a contributing identity fact, but it SHALL not treat all dependency claims of the Service as workload-specific on that basis alone. Messaging claims stay under their v0.5 source/identity guards and are only locality-qualified if separately admitted by the I1 applicability matrix.
+`DEPLOYED_AS` remains a Service–Workload identity relation; a locality-aware answer MAY cite it as a contributing identity fact, but it SHALL not treat all dependency claims of the Service as workload-specific on that basis alone. Messaging claims stay under their v0.5 source/identity guards and are only locality-qualified after a separate reviewed applicability amendment and dedicated tests; **they remain unscoped in the minimum v0.6 surface**. Existing `get_service_dependencies`, `get_architecture_drift`, `get_evidence` and REST responses SHALL NOT gain a locality limitation or change meaning merely because a relation cannot be localized. Only the **new relation-locality answer** reports unsupported locality kinds/dimensions. Changing an existing response requires a separate reviewed schema/compatibility decision.
 
 ## 17. Public Question-Specific Exposure Proposal
 
