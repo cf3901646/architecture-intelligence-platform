@@ -3293,7 +3293,8 @@
     }
   },
   "info": {
-    "title": "Architecture Intelligence PoC"
+    "title": "Architecture Intelligence PoC",
+    "version": "snapshot"
   },
   "openapi": "3.1.0",
   "paths": {
