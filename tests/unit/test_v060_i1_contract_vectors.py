@@ -5,6 +5,7 @@ standard library only and deliberately imports nothing from `app/`: it is an ind
 for the frozen contract, not a test of AIP's implementation (I1 §13, §14).
 """
 
+import hashlib
 import json
 import re
 from datetime import UTC, date, datetime, timedelta
@@ -138,3 +139,117 @@ def test_support_matrix_uses_only_frozen_reason_codes() -> None:
     matrix = (SPEC_DIR / "i1-locality-support-matrix.md").read_text(encoding="utf-8")
     used = set(re.findall(r"LOCALITY_[A-Z0-9_]+", matrix))
     assert used <= frozen, sorted(used - frozen)
+
+
+# --- I1.3 scoped observed-evidence v2 (i1-scoped-evidence-v2-contract.md) ---
+
+V2 = _load("v2-evidence-id.json")
+KEY_VECTORS = {v["id"]: v for v in V2["key_vectors"]}
+V2_PREFIX = "evidence:otel:calls-scoped:v2:"
+V2_KEY_FIELDS = {
+    "contract_version",
+    "source_type",
+    "evidence_type",
+    "relation_type",
+    "environment",
+    "bucket_utc_day",
+    "subject_id",
+    "object_id",
+    "caller_cluster_uid",
+    "caller_pod_uid",
+}
+V2_ENTRY_FIELDS = V2_KEY_FIELDS | {
+    "id",
+    "first_seen",
+    "last_seen",
+    "observation_count",
+    "correlation_mode",
+    "sample_trace_ids",
+    "k8s_namespace_name",
+    "k8s_pod_name",
+    "k8s_deployment_name",
+    "k8s_statefulset_name",
+    "k8s_daemonset_name",
+    "conflicting_consistency_attributes",
+    "key_rule_id",
+    "key_rule_version",
+    "normalization_rule_id",
+    "normalization_rule_version",
+}
+
+
+def _canonical(value: object) -> bytes:
+    return json.dumps(value, sort_keys=True, separators=(",", ":"), ensure_ascii=False).encode()
+
+
+def _v2_id(key: dict) -> str:
+    return V2_PREFIX + hashlib.sha256(_canonical(key)).hexdigest()
+
+
+@pytest.mark.parametrize("vector", V2["key_vectors"], ids=lambda v: v["id"])
+def test_v2_key_vector(vector: dict) -> None:
+    key = vector["input"]
+    assert set(key) == V2_KEY_FIELDS
+    assert isinstance(key["contract_version"], int) and key["contract_version"] == 2
+    assert _canonical(key) == vector["canonical_bytes_utf8"].encode("utf-8")
+    assert hashlib.sha256(_canonical(key)).hexdigest() == vector["sha256"]
+    assert _v2_id(key) == vector["evidence_id"]
+
+
+def test_v2_key_distinctions() -> None:
+    ids = {name: v["evidence_id"] for name, v in KEY_VECTORS.items()}
+    assert ids["V02-reordered-input"] == ids["V01-base"]  # L01
+    assert list(KEY_VECTORS["V02-reordered-input"]["input"]) != list(
+        KEY_VECTORS["V01-base"]["input"]
+    )
+    assert ids["V03-distinct-pod"] != ids["V01-base"]  # L02
+    assert ids["V04-same-pod-uid-other-cluster"] != ids["V01-base"]  # L03
+    distinct = {k: v for k, v in ids.items() if k != "V02-reordered-input"}
+    assert len(set(distinct.values())) == len(distinct)
+
+
+def test_v2_non_ascii_is_raw_utf8() -> None:
+    vector = KEY_VECTORS["V05-non-ascii-environment"]
+    assert "ü" in vector["canonical_bytes_utf8"] and "\\u" not in vector["canonical_bytes_utf8"]
+
+
+@pytest.mark.parametrize("vector", V2["v1_unchanged"], ids=lambda v: v["id"])
+def test_v1_id_has_no_pod_or_cluster_component(vector: dict) -> None:
+    digest = hashlib.sha256(vector["seed_utf8"].encode("utf-8")).hexdigest()[:12]
+    assert digest == vector["sha256_first12"]
+    assert (
+        vector["evidence_id"]
+        == f"evidence:otel:{vector['environment']}:{vector['bucket_day']}:{digest}"
+    )
+    for name in vector["same_as_v2"]:
+        key = KEY_VECTORS[name]["input"]
+        seed = f"{key['subject_id']}|{key['relation_type']}|{key['object_id']}"
+        assert (key["environment"], key["bucket_utc_day"], seed) == (
+            vector["environment"],
+            vector["bucket_day"],
+            vector["seed_utf8"],
+        )
+
+
+def test_v2_snapshot_fragment() -> None:
+    fragment = V2["snapshot_fragment"]
+    entries = fragment["entries"]
+    assert fragment["state_key"] == "scoped_observed_calls_v2"
+    assert entries, "the conditional key is never present with an empty list"
+    assert _canonical(entries) == fragment["canonical_bytes_utf8"].encode("utf-8")
+    assert hashlib.sha256(_canonical(entries)).hexdigest() == fragment["sha256"]
+    assert [e["id"] for e in entries] == sorted(e["id"] for e in entries)
+    for entry in entries:
+        assert set(entry) == V2_ENTRY_FIELDS
+        assert entry["id"] == _v2_id({f: entry[f] for f in V2_KEY_FIELDS})
+        assert entry["sample_trace_ids"] == sorted(set(entry["sample_trace_ids"]))[:5]
+        conflicts = entry["conflicting_consistency_attributes"]
+        assert conflicts == sorted(set(conflicts))
+        assert all(entry[name] is None for name in conflicts)
+        assert entry["first_seen"] <= entry["last_seen"]
+
+
+def test_no_v2_snapshot_pin_matches_golden_path() -> None:
+    pin = V2["no_v2_snapshot_pin"]
+    expected = (ROOT / pin["source"]).read_text(encoding="utf-8")
+    assert f'"actual_snapshot_id": "{pin["snapshot_id"]}"' in expected
