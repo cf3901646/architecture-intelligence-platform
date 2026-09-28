@@ -353,7 +353,7 @@ Existing unscoped dependency/drift/deployment requests keep their v0.5 meaning, 
 
 ## 17. Public Question-Specific Exposure Proposal
 
-The release requires a bounded, service-owned, deterministic, publicly usable relation-locality projection, not an arbitrary traversal API. **Draft proposal for I3 review:**
+The release requires a bounded, service-owned, deterministic, publicly usable relation-locality projection, not an arbitrary traversal API. **I3 exposure option to freeze before implementation:**
 
 ```text
 ArchitectureIntelligenceService.get_relation_localities(request)
