@@ -12,18 +12,26 @@ aren't yet guaranteed stable pre-1.0.
 ### Added
 
 - Static type checking: `uv run pyright` (standard mode) now runs in CI's `quality` job over all
-  of `app/`. Existing type errors were fixed without behavior changes, except the two listed under
-  Changed. Only rule-scoped `# pyright: ignore[<rule>]` comments suppress errors; `# type: ignore`
-  is no longer honored.
+  of `app/`. Existing type errors were fixed without behavior changes, except the
+  `ServiceIdentityResolution` and OpenAI provider changes listed under Changed. Only rule-scoped
+  `# pyright: ignore[<rule>]` comments suppress errors; `# type: ignore` is no longer honored.
 - Lint: ruff now also enforces flake8-bugbear, naive-datetime, blind-except, import-order,
   pyupgrade, bandit (for `app/`) and ruff's own rules.
 - Contributor tooling: a checked-in `.claude/settings.json` adds best-effort Claude Code deny rules
   for the common forms of merging pull requests, force-pushing and pushing directly to `main` (not
   a security boundary; the rule itself stays procedural), and allows the exact check commands
   without a prompt.
+- REST API snapshot: `schemas/rest/openapi.json`, regenerated with
+  `uv run python -m app.api.openapi_export`; a unit test fails whenever the REST API drifts from
+  it, so every REST change is an explicit, reviewed diff. It detects changes; it doesn't make the
+  REST API stable.
 
 ### Changed
 
+- Container images are pinned by digest everywhere outside `docs/`: Neo4j 5.26.31 in the dev and
+  demo stacks, integration tests and harnesses, and Python 3.14.7 and uv 0.12.19 in the
+  Dockerfiles (the exact base images v0.5.0 was built from). Dependabot now also updates the
+  compose files, and a unit test rejects unpinned images.
 - `ServiceIdentityResolution` now rejects, at construction, a `RESOLVED` outcome without a
   `service_id` (and a rejected outcome with one). Every built-in resolver already complied; a custom
   `ServiceIdentityResolver` returning an inconsistent resolution now fails loudly instead of
