@@ -1,8 +1,10 @@
+from typing import LiteralString
+
 import neo4j
 
 from app.graph.revision_fence import ensure_revision_singleton
 
-CONSTRAINTS = [
+CONSTRAINTS: list[LiteralString] = [
     "CREATE CONSTRAINT service_id IF NOT EXISTS FOR (s:Service) REQUIRE s.id IS UNIQUE",
     "CREATE CONSTRAINT operation_id IF NOT EXISTS FOR (o:Operation) REQUIRE o.id IS UNIQUE",
     "CREATE CONSTRAINT queue_id IF NOT EXISTS FOR (q:Queue) REQUIRE q.id IS UNIQUE",

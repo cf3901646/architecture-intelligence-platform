@@ -40,7 +40,7 @@ extend-immutable-calls = ["fastapi.Depends", "fastapi.Query", "fastapi.Path", "f
 [tool.pyright]
 # Enforced in CI (`quality` job). Coverage widens one package at a time: add a package here only
 # once it is clean, never by loosening the mode or suppressing broadly (see AGENTS.md).
-include = ["app/canonical", "app/architecture_intelligence", "app/sources"]
+include = ["app/canonical", "app/architecture_intelligence", "app/graph", "app/sources"]
 typeCheckingMode = "standard"
 pythonVersion = "3.13"
 venvPath = "."

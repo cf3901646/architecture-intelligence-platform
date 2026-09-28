@@ -35,6 +35,7 @@ from app.sources.model import (
     IngestionResult,
     KubernetesSourceConfig,
     NotSupplied,
+    SourceInstanceId,
 )
 from app.sources.removal_authority import authorize_source_removal
 from app.sources.replay import ReplayCase, classify_replay_case
@@ -471,13 +472,19 @@ def _dropped_claim_owners(
     source_instance_id: str,
     run_source_ids: AbstractSet[str],
     run_emitters: Mapping[str, AbstractSet[str]],
-) -> dict[str, set[str]]:
+) -> dict[str, set[SourceInstanceId]]:
     """`committed_claim_owners` for `plan_source_claim_reconciliation`: this source plus every owner
     the claim will have after the run, so a dropped claim is `expired` only when nobody else will
-    own it, and `ownership_removed` otherwise."""
+    own it, and `ownership_removed` otherwise. Owner ids are stored as plain strings, and
+    `SourceInstanceId` is a typing-only NewType, so wrapping them changes no value."""
     return {
-        key: {source_instance_id}
-        | _owners_after_run(owners, key, run_source_ids=run_source_ids, run_emitters=run_emitters)
+        key: {
+            SourceInstanceId(owner)
+            for owner in {source_instance_id}
+            | _owners_after_run(
+                owners, key, run_source_ids=run_source_ids, run_emitters=run_emitters
+            )
+        }
         for key, owners in owned.items()
     }
 
@@ -520,8 +527,10 @@ def _write_nodes(
     for field_name, label in NODE_LABELS.items():
         query = _MERGE_NODE_TEMPLATE.format(label=label)
         for entity in getattr(model, field_name):
+            # Cypher can't parametrize a label; `label` comes from NODE_LABELS or a module-level
+            # carrier label constant, never from input, so the formatted query is not injectable.
             tx.run(
-                query,
+                query,  # pyright: ignore[reportArgumentType]
                 id=entity.id,
                 props=entity.model_dump(exclude={"id"}),
                 source_instance_id=source_instance_id,
@@ -548,8 +557,10 @@ def _write_pubsub_carrier_nodes(
     ):
         query = _MERGE_NODE_TEMPLATE.format(label=label)
         for carrier in carriers:
+            # Cypher can't parametrize a label; `label` comes from NODE_LABELS or a module-level
+            # carrier label constant, never from input, so the formatted query is not injectable.
             tx.run(
-                query,
+                query,  # pyright: ignore[reportArgumentType]
                 id=carrier.id,
                 props=carrier.model_dump(),
                 source_instance_id=source_instance_id,
@@ -755,8 +766,10 @@ def _write_relations(
 ) -> int:
     for relation in model.relations:
         query = _MERGE_RELATION_TEMPLATE.format(relation_type=relation.type)
+        # Cypher can't parametrize a relationship type; `_import_source_tx` rejects any type outside
+        # KNOWN_RELATION_TYPES before this runs, so the formatted query is not injectable.
         tx.run(
-            query,
+            query,  # pyright: ignore[reportArgumentType]
             source_id=relation.source_id,
             target_id=relation.target_id,
             key=relation_key(relation),
@@ -867,7 +880,7 @@ def _import_source_tx(
         run_node_emitters = {node_id: {source_instance_id} for node_id in new_node_ids}
         run_relation_emitters = {key: {source_instance_id} for key in new_relation_keys}
     node_plan = plan_source_claim_reconciliation(
-        source_instance_id=source_instance_id,
+        source_instance_id=SourceInstanceId(source_instance_id),
         committed_claim_owners=_dropped_claim_owners(
             owned_nodes,
             source_instance_id=source_instance_id,
@@ -877,7 +890,7 @@ def _import_source_tx(
         newly_emitted_claim_keys=new_node_ids,
     )
     relation_plan = plan_source_claim_reconciliation(
-        source_instance_id=source_instance_id,
+        source_instance_id=SourceInstanceId(source_instance_id),
         committed_claim_owners=_dropped_claim_owners(
             owned_relations,
             source_instance_id=source_instance_id,
@@ -1041,7 +1054,7 @@ def _remove_source_tx(
     existing_node_ids = set(owned_nodes)
     removed = {source_instance_id, *removed_source_ids}
     node_plan = plan_source_claim_reconciliation(
-        source_instance_id=source_instance_id,
+        source_instance_id=SourceInstanceId(source_instance_id),
         committed_claim_owners=_dropped_claim_owners(
             owned_nodes,
             source_instance_id=source_instance_id,
@@ -1051,7 +1064,7 @@ def _remove_source_tx(
         newly_emitted_claim_keys=frozenset(),
     )
     relation_plan = plan_source_claim_reconciliation(
-        source_instance_id=source_instance_id,
+        source_instance_id=SourceInstanceId(source_instance_id),
         committed_claim_owners=_dropped_claim_owners(
             owned_relations,
             source_instance_id=source_instance_id,
@@ -1122,6 +1135,12 @@ def _import_all_sources_tx(
     persisted, raising `StalePredecessorError` (aborting the whole transaction, writing nothing) on
     a mismatch.
     """
+    # `import_discovery_run` calls this only for a commit-eligible run, and `run_discovery` builds
+    # the inventory snapshot (required below) only when both scope fields are set.
+    discovery_scope_id = run_result.discovery_scope_id
+    scope_definition_digest = run_result.scope_definition_digest
+    assert discovery_scope_id is not None and scope_definition_digest is not None
+
     # A MERGE, not a MATCH - see _READ_CURRENT_INVENTORY_QUERY's own comment: this acquires an
     # exclusive per-scope lock for the rest of this transaction, so `.single()` always returns
     # exactly one row. For a freshly created node, `discovery_scope_id` is set immediately (it's
@@ -1136,8 +1155,9 @@ def _import_all_sources_tx(
     # PR review: a tombstone submitted on a brand-new scope's very first run crashed instead of
     # being classified `NO_COMMITTED_INVENTORY`).
     persisted_inventory = tx.run(
-        _READ_CURRENT_INVENTORY_QUERY, discovery_scope_id=run_result.discovery_scope_id
+        _READ_CURRENT_INVENTORY_QUERY, discovery_scope_id=discovery_scope_id
     ).single()
+    assert persisted_inventory is not None  # the MERGE always yields exactly one row
     has_committed_inventory = persisted_inventory["inventory_revision"] is not None
     committed_discovery_scope_id = (
         persisted_inventory["discovery_scope_id"] if has_committed_inventory else None
@@ -1154,14 +1174,14 @@ def _import_all_sources_tx(
         if actual_committed_revision != expected_prior_inventory_revision:
             raise StalePredecessorError(
                 f"expected prior inventory revision {expected_prior_inventory_revision!r} for "
-                f"scope {run_result.discovery_scope_id!r}, but the currently committed revision "
+                f"scope {discovery_scope_id!r}, but the currently committed revision "
                 f"is {actual_committed_revision!r}"
             )
 
     if run_result.inventory_snapshot is None:
         raise ValueError(
             "a commit-eligible discovery run must carry a real inventory_snapshot "
-            f"(discovery_scope_id={run_result.discovery_scope_id!r})"
+            f"(discovery_scope_id={discovery_scope_id!r})"
         )
 
     tombstone_validations: dict[str, TombstoneValidation] = {}
@@ -1226,7 +1246,7 @@ def _import_all_sources_tx(
         known_states = list(
             tx.run(
                 _READ_SOURCE_STATES_FOR_SCOPE_QUERY,
-                discovery_scope_id=run_result.discovery_scope_id,
+                discovery_scope_id=discovery_scope_id,
             )
         )
         for record in known_states:
@@ -1237,11 +1257,12 @@ def _import_all_sources_tx(
             # `SourceState` and `CurrentInventory` for this scope together (see the write below),
             # so `has_committed_inventory` (hence `committed_discovery_scope_id`) is guaranteed set
             # whenever this loop body runs.
+            assert committed_discovery_scope_id is not None
             decision = authorize_source_removal(
                 tombstone_validation=tombstone_validations.get(source_instance_id),
                 enumeration_status=run_result.inventory_status,
-                enumeration_discovery_scope_id=run_result.discovery_scope_id,
-                enumeration_scope_definition_digest=run_result.scope_definition_digest,
+                enumeration_discovery_scope_id=discovery_scope_id,
+                enumeration_scope_definition_digest=scope_definition_digest,
                 committed_discovery_scope_id=committed_discovery_scope_id,
                 committed_scope_definition_digest=record["scope_definition_digest"],
                 source_absent_from_enumeration=True,
@@ -1260,15 +1281,19 @@ def _import_all_sources_tx(
 
     per_source: dict[str, SourceImportStats] = {}
     for source_instance_id, source_outcome in run_result.source_outcomes.items():
+        semantic_input_digest = source_outcome.outcome.semantic_input_digest
+        # Only REJECTED_* outcomes lack a digest, and any of those makes the run PARTIAL, so a
+        # commit-eligible run never reaches here with one.
+        assert semantic_input_digest is not None
         per_source[source_instance_id] = _import_source_tx(
             tx,
             source_instance_id=source_instance_id,
             locator=source_outcome.descriptor_locator,
             model=source_outcome.outcome.model,
             result=source_outcome.outcome.result,
-            semantic_input_digest=source_outcome.outcome.semantic_input_digest,
-            discovery_scope_id=run_result.discovery_scope_id,
-            scope_definition_digest=run_result.scope_definition_digest,
+            semantic_input_digest=semantic_input_digest,
+            discovery_scope_id=discovery_scope_id,
+            scope_definition_digest=scope_definition_digest,
             committed_nodes_before=committed_nodes_before,
             committed_relations_before=committed_relations_before,
             run_source_ids=frozenset(run_result.source_outcomes) | set(removed_source_instance_ids),
@@ -1293,11 +1318,11 @@ def _import_all_sources_tx(
     )
     tx.run(
         _WRITE_CURRENT_INVENTORY_QUERY,
-        discovery_scope_id=run_result.discovery_scope_id,
+        discovery_scope_id=discovery_scope_id,
         inventory_revision=run_result.inventory_snapshot.inventory_revision,
         inventory_capture_id=run_result.inventory_snapshot.inventory_capture_id,
         inventory_event_id=new_event_id,
-        scope_definition_digest=run_result.scope_definition_digest,
+        scope_definition_digest=scope_definition_digest,
     )
 
     return (
@@ -1402,6 +1427,8 @@ def import_discovery_run(
                 scope_definition_digest=run_result.scope_definition_digest,
             )
 
+        # _import_all_sources_tx rejects a commit-eligible run without an inventory snapshot.
+        assert run_result.inventory_snapshot is not None
         return ImportRunStats(
             inventory_status=run_result.inventory_status,
             committed=True,
