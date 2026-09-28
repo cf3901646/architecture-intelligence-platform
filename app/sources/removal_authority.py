@@ -24,10 +24,10 @@ def authorize_source_removal(
     *,
     tombstone_validation: TombstoneValidation | None,
     enumeration_status: InventoryStatus,
-    enumeration_discovery_scope_id: str,
-    enumeration_scope_definition_digest: str,
-    committed_discovery_scope_id: str,
-    committed_scope_definition_digest: str,
+    enumeration_discovery_scope_id: str | None,
+    enumeration_scope_definition_digest: str | None,
+    committed_discovery_scope_id: str | None,
+    committed_scope_definition_digest: str | None,
     source_absent_from_enumeration: bool,
 ) -> RemovalAuthorityDecision:
     """I1 spec §6: "Whole-source expiration is authorized only by either: (1) a versioned
@@ -38,6 +38,11 @@ def authorize_source_removal(
     already-computed `TombstoneValidation` (from `app.sources.tombstones`) rather than re-deriving
     staleness, so that logic lives in exactly one place. `tombstone_validation=None` means no
     tombstone was presented at all for this decision.
+
+    A `None` scope id or digest on either side is never a match. The committed pair is `None` when
+    the scope has no committed inventory yet, for example when its sources were only ever written
+    through `app.graph.importer.import_source`; enumeration-based removal is then denied, and only
+    an accepted tombstone can authorize it.
     """
     if tombstone_validation is not None and tombstone_validation.accepted:
         return RemovalAuthorityDecision(authorized=True, reason=None)
@@ -47,10 +52,9 @@ def authorize_source_removal(
             authorized=False, reason=RemovalAuthorityDenialReason.ENUMERATION_NOT_COMPLETE
         )
 
-    if (enumeration_discovery_scope_id, enumeration_scope_definition_digest) != (
-        committed_discovery_scope_id,
-        committed_scope_definition_digest,
-    ):
+    enumeration_scope = (enumeration_discovery_scope_id, enumeration_scope_definition_digest)
+    committed_scope = (committed_discovery_scope_id, committed_scope_definition_digest)
+    if None in enumeration_scope or None in committed_scope or enumeration_scope != committed_scope:
         return RemovalAuthorityDecision(
             authorized=False, reason=RemovalAuthorityDenialReason.ENUMERATION_SCOPE_MISMATCH
         )

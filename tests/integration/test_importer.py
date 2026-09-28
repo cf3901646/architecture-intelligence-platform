@@ -1122,6 +1122,61 @@ def test_import_all_sources_denies_removal_on_scope_mismatch_but_an_explicit_tom
     assert _count(driver, "MATCH (s:Service) RETURN count(s) AS c") == 0
 
 
+def test_discovery_run_over_a_scope_populated_only_by_import_source_denies_enumeration_removal(
+    driver, tmp_path
+):
+    """PR #281 review: `import_source` writes a scoped `SourceState` but no `CurrentInventory`, so a
+    later COMPLETE discovery run for that scope finds the directly imported source with no committed
+    inventory. The run must neither crash nor remove that source through the enumeration path:
+    without a committed scope there is nothing for the enumeration to match (I1 spec §6), and only
+    an accepted tombstone could authorize the removal."""
+    root = tmp_path / "root"
+    shutil.copytree(EXAMPLES_DIR / "product-service", root / "product-service")
+    run_result = run_filesystem_discovery(
+        FilesystemSourceConfig(id="direct-import-test", root=root)
+    )
+    assert run_result.commit_eligible is True
+    assert run_result.inventory_snapshot is not None
+
+    with driver.session(database=DATABASE) as session:
+        import_source(
+            session,
+            source_instance_id="direct-source",
+            locator="direct-source.yaml",
+            model=ArchitectureModel(services=[Service(id="service:direct", name="Direct")]),
+            semantic_input_digest=DIGEST_1,
+            discovery_scope_id=run_result.discovery_scope_id,
+            scope_definition_digest=run_result.scope_definition_digest,
+        )
+    assert _count(driver, "MATCH (i:CurrentInventory) RETURN count(i) AS c") == 0
+
+    stats = import_discovery_run(driver, database=DATABASE, run_result=run_result)
+
+    assert stats.committed is True
+    assert stats.removed_source_instance_ids == ()
+    assert stats.removal_stats == ()
+    assert _count(driver, "MATCH (s:Service {id: 'service:direct'}) RETURN count(s) AS c") == 1
+    assert (
+        _count(
+            driver,
+            "MATCH (s:SourceState {source_instance_id: 'direct-source'}) RETURN count(s) AS c",
+        )
+        == 1
+    )
+    assert (
+        _count(driver, "MATCH (s:Service {id: 'service:product-service'}) RETURN count(s) AS c")
+        == 1
+    )
+    with driver.session(database=DATABASE) as session:
+        inventory = session.run(
+            "MATCH (i:CurrentInventory) RETURN i.inventory_revision AS revision, "
+            "i.discovery_scope_id AS scope, i.scope_definition_digest AS digest"
+        ).single()
+    assert inventory["revision"] == run_result.inventory_snapshot.inventory_revision
+    assert inventory["scope"] == run_result.discovery_scope_id
+    assert inventory["digest"] == run_result.scope_definition_digest
+
+
 def test_import_all_sources_denies_removal_via_a_tombstone_with_a_stale_expected_predecessor(
     driver, tmp_path
 ):

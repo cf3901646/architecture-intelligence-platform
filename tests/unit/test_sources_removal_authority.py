@@ -1,3 +1,5 @@
+import pytest
+
 from app.sources.inventory import InventoryStatus
 from app.sources.removal_authority import (
     RemovalAuthorityDenialReason,
@@ -71,6 +73,40 @@ def test_scope_mismatch_denies():
     )
     assert decision.authorized is False
     assert decision.reason is RemovalAuthorityDenialReason.ENUMERATION_SCOPE_MISMATCH
+
+
+@pytest.mark.parametrize(
+    "overrides",
+    [
+        # No committed inventory yet (e.g. a scope populated only through `import_source`).
+        {"committed_discovery_scope_id": None, "committed_scope_definition_digest": None},
+        {"committed_discovery_scope_id": None},
+        {"committed_scope_definition_digest": None},
+        # Both sides missing must not count as "the same scope".
+        {
+            "enumeration_discovery_scope_id": None,
+            "enumeration_scope_definition_digest": None,
+            "committed_discovery_scope_id": None,
+            "committed_scope_definition_digest": None,
+        },
+    ],
+)
+def test_missing_scope_never_matches(overrides):
+    decision = authorize_source_removal(**_base_kwargs(**overrides))
+    assert decision.authorized is False
+    assert decision.reason is RemovalAuthorityDenialReason.ENUMERATION_SCOPE_MISMATCH
+
+
+def test_valid_tombstone_authorizes_without_committed_scope():
+    decision = authorize_source_removal(
+        **_base_kwargs(
+            tombstone_validation=VALID_TOMBSTONE,
+            committed_discovery_scope_id=None,
+            committed_scope_definition_digest=None,
+        )
+    )
+    assert decision.authorized is True
+    assert decision.reason is None
 
 
 def test_invalid_tombstone_with_valid_complete_enumeration_path_still_authorizes():

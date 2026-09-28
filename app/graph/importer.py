@@ -814,9 +814,11 @@ def _import_source_tx(
     locator: str,
     model: ArchitectureModel,
     result: IngestionResult,
-    semantic_input_digest: str,
-    discovery_scope_id: str,
-    scope_definition_digest: str,
+    # `None` only via `import_discovery_run` with a caller-built run result; the replay
+    # classification and the SourceState write both already handle it.
+    semantic_input_digest: str | None,
+    discovery_scope_id: str | None,
+    scope_definition_digest: str | None,
     committed_nodes_before: dict[str, dict] | None = None,
     committed_relations_before: dict[str, dict] | None = None,
     run_source_ids: AbstractSet[str] | None = None,
@@ -1135,12 +1137,6 @@ def _import_all_sources_tx(
     persisted, raising `StalePredecessorError` (aborting the whole transaction, writing nothing) on
     a mismatch.
     """
-    # `import_discovery_run` calls this only for a commit-eligible run, and `run_discovery` builds
-    # the inventory snapshot (required below) only when both scope fields are set.
-    discovery_scope_id = run_result.discovery_scope_id
-    scope_definition_digest = run_result.scope_definition_digest
-    assert discovery_scope_id is not None and scope_definition_digest is not None
-
     # A MERGE, not a MATCH - see _READ_CURRENT_INVENTORY_QUERY's own comment: this acquires an
     # exclusive per-scope lock for the rest of this transaction, so `.single()` always returns
     # exactly one row. For a freshly created node, `discovery_scope_id` is set immediately (it's
@@ -1155,7 +1151,7 @@ def _import_all_sources_tx(
     # PR review: a tombstone submitted on a brand-new scope's very first run crashed instead of
     # being classified `NO_COMMITTED_INVENTORY`).
     persisted_inventory = tx.run(
-        _READ_CURRENT_INVENTORY_QUERY, discovery_scope_id=discovery_scope_id
+        _READ_CURRENT_INVENTORY_QUERY, discovery_scope_id=run_result.discovery_scope_id
     ).single()
     assert persisted_inventory is not None  # the MERGE always yields exactly one row
     has_committed_inventory = persisted_inventory["inventory_revision"] is not None
@@ -1174,14 +1170,14 @@ def _import_all_sources_tx(
         if actual_committed_revision != expected_prior_inventory_revision:
             raise StalePredecessorError(
                 f"expected prior inventory revision {expected_prior_inventory_revision!r} for "
-                f"scope {discovery_scope_id!r}, but the currently committed revision "
+                f"scope {run_result.discovery_scope_id!r}, but the currently committed revision "
                 f"is {actual_committed_revision!r}"
             )
 
     if run_result.inventory_snapshot is None:
         raise ValueError(
             "a commit-eligible discovery run must carry a real inventory_snapshot "
-            f"(discovery_scope_id={discovery_scope_id!r})"
+            f"(discovery_scope_id={run_result.discovery_scope_id!r})"
         )
 
     tombstone_validations: dict[str, TombstoneValidation] = {}
@@ -1246,23 +1242,22 @@ def _import_all_sources_tx(
         known_states = list(
             tx.run(
                 _READ_SOURCE_STATES_FOR_SCOPE_QUERY,
-                discovery_scope_id=discovery_scope_id,
+                discovery_scope_id=run_result.discovery_scope_id,
             )
         )
         for record in known_states:
             source_instance_id = record["source_instance_id"]
             if source_instance_id in run_result.source_outcomes:
                 continue
-            # `known_states` can only be non-empty if a prior COMPLETE run already persisted both
-            # `SourceState` and `CurrentInventory` for this scope together (see the write below),
-            # so `has_committed_inventory` (hence `committed_discovery_scope_id`) is guaranteed set
-            # whenever this loop body runs.
-            assert committed_discovery_scope_id is not None
+            # `committed_discovery_scope_id` is `None` when this scope has no committed inventory
+            # yet, which `known_states` does not rule out: `import_source` writes a scoped
+            # `SourceState` without a `CurrentInventory`. `authorize_source_removal` then denies
+            # enumeration-based removal; only an accepted tombstone can authorize it.
             decision = authorize_source_removal(
                 tombstone_validation=tombstone_validations.get(source_instance_id),
                 enumeration_status=run_result.inventory_status,
-                enumeration_discovery_scope_id=discovery_scope_id,
-                enumeration_scope_definition_digest=scope_definition_digest,
+                enumeration_discovery_scope_id=run_result.discovery_scope_id,
+                enumeration_scope_definition_digest=run_result.scope_definition_digest,
                 committed_discovery_scope_id=committed_discovery_scope_id,
                 committed_scope_definition_digest=record["scope_definition_digest"],
                 source_absent_from_enumeration=True,
@@ -1281,19 +1276,15 @@ def _import_all_sources_tx(
 
     per_source: dict[str, SourceImportStats] = {}
     for source_instance_id, source_outcome in run_result.source_outcomes.items():
-        semantic_input_digest = source_outcome.outcome.semantic_input_digest
-        # Only REJECTED_* outcomes lack a digest, and any of those makes the run PARTIAL, so a
-        # commit-eligible run never reaches here with one.
-        assert semantic_input_digest is not None
         per_source[source_instance_id] = _import_source_tx(
             tx,
             source_instance_id=source_instance_id,
             locator=source_outcome.descriptor_locator,
             model=source_outcome.outcome.model,
             result=source_outcome.outcome.result,
-            semantic_input_digest=semantic_input_digest,
-            discovery_scope_id=discovery_scope_id,
-            scope_definition_digest=scope_definition_digest,
+            semantic_input_digest=source_outcome.outcome.semantic_input_digest,
+            discovery_scope_id=run_result.discovery_scope_id,
+            scope_definition_digest=run_result.scope_definition_digest,
             committed_nodes_before=committed_nodes_before,
             committed_relations_before=committed_relations_before,
             run_source_ids=frozenset(run_result.source_outcomes) | set(removed_source_instance_ids),
@@ -1318,11 +1309,11 @@ def _import_all_sources_tx(
     )
     tx.run(
         _WRITE_CURRENT_INVENTORY_QUERY,
-        discovery_scope_id=discovery_scope_id,
+        discovery_scope_id=run_result.discovery_scope_id,
         inventory_revision=run_result.inventory_snapshot.inventory_revision,
         inventory_capture_id=run_result.inventory_snapshot.inventory_capture_id,
         inventory_event_id=new_event_id,
-        scope_definition_digest=scope_definition_digest,
+        scope_definition_digest=run_result.scope_definition_digest,
     )
 
     return (
