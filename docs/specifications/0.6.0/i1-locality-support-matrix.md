@@ -16,7 +16,7 @@ The table verifies each I1 §2 baseline claim against the code and adds the fact
 
 | # | Mechanism (at `77479c1`) | Verified current behaviour | Consequence under the accepted I1 contract |
 |---|---|---|---|
-| B1 | [`app/canonical/ids.py`](../../../app/canonical/ids.py):39 `observed_evidence_id` | ID is `evidence:otel:{environment}:{YYYY-MM-DD}:{h}` where `h` is the first **12** hex characters of SHA-256 over the UTF-8 string `subject_id\|relation_type\|object_id`. No Pod, cluster, trace or span component. | **The v1 attribution gap:** a v1 bucket cannot distinguish caller Pods or clusters. v1 stays byte-unchanged; caller attribution requires the separate v2 identity (I1 §7). |
+| B1 | [`app/canonical/ids.py`](../../../app/canonical/ids.py):39 `observed_evidence_id` | ID is `evidence:otel:{environment}:{YYYY-MM-DD}:{h}` where `h` is the first **12** hex characters of SHA-256 over the UTF-8 seed string formed by joining `subject_id`, `relation_type` and `object_id` with a literal pipe character (see the note below this table). No Pod, cluster, trace or span component. | **The v1 attribution gap:** a v1 bucket cannot distinguish caller Pods or clusters. v1 stays byte-unchanged; caller attribution requires the separate v2 identity (I1 §7). |
 | B2 | [`app/telemetry/correlation_buffer.py`](../../../app/telemetry/correlation_buffer.py):9 `PendingHttpSpan` | Fields: `trace_id, span_id, parent_span_id, span_kind, service_name, service_namespace, service_version, environment, method, route, target_identity, timestamp`. **No `k8s_*` or cluster field.** | I2 must extend the transient carrier with the admitted CLIENT identity (I1 §6.1). Without that, cross-batch pairs cannot produce v2. |
 | B3 | `HttpCorrelationConfig`, [`app/settings.py`](../../../app/settings.py):57; buffer `sweep_expired`/eviction, `correlation_buffer.py`:78–94 | TTL defaults to 60 s, measured from **wall-clock insertion time**. The size bound defaults to 10 000. TTL-expired spans are returned by `sweep_expired()`. Size-evicted spans are only counted in `evictions` and otherwise **dropped silently**. | The existing TTL and size bounds are preserved (I1 §6.1). A size-evicted CLIENT yields neither v1 nor v2 today; this contract does not change that. |
 | B4 | [`app/telemetry/adapter.py`](../../../app/telemetry/adapter.py):234 `correlate_http_call_observations` | Pairing: SERVER is keyed `(trace_id, parent_span_id)` and CLIENT `(trace_id, span_id)`, in batch and across batches (`offer_server` at `correlation_buffer.py`:96, `offer_client` at :115). An expired CLIENT can become a `CLIENT_ONLY` fact (`adapter.py`:393). An expired SERVER **always** becomes `UnresolvedObservation(missing_caller_identity)` (`adapter.py`:402–426). | `SERVER_ONLY` produces no CALLS fact today, so it can produce neither v1 CALLS nor v2 (I1 §6.1, L09). `CLIENT_ONLY` may become v2 only if its CLIENT identity survives (I1 §6.1). |
@@ -30,6 +30,14 @@ The table verifies each I1 §2 baseline claim against the code and adds the fact
 | B12 | [`app/sources/kubernetes_envelope.py`](../../../app/sources/kubernetes_envelope.py):206–216; [`app/sources/kubernetes_mapping.py`](../../../app/sources/kubernetes_mapping.py):44; [`app/sources/kubernetes_owner_chain.py`](../../../app/sources/kubernetes_owner_chain.py):186 | `metadata.capturedAt` is **envelope-wide**; there is no per-resource capture time. `source.clusterUid` and `source.mode` ∈ {`DECLARED_MANIFEST`, `CAPTURED_RESOURCE`}. Supported Workload kinds are Deployment, StatefulSet and DaemonSet. Owner chains are Pod→ReplicaSet→Deployment, Pod→StatefulSet and Pod→DaemonSet. | `capturedAt` is the capture's time, not continuous Pod presence (I1 §8–9). One Deployment rolling across two ReplicaSets is **one** Workload (I1 §2.1, §12; L33). |
 | B13 | [`app/qualification/declared_observed.py`](../../../app/qualification/declared_observed.py):25–27, :58 | The statuses are `CONFIRMED`, `OBSERVED_ONLY` and `NOT_OBSERVED_IN_WINDOW`. Observed matching requires exact environment and an inclusive `last_seen` window. Declared evidence ignores environment and window. | This remains the single qualification owner (ADR 0010). Local `NOT_OBSERVED_IN_WINDOW` is unreachable and forbidden (I1 §5). |
 | B14 | [`app/architecture_intelligence/repository.py`](../../../app/architecture_intelligence/repository.py):53, :344; [`examples/release-golden-path/expected.json`](../../../examples/release-golden-path/expected.json):45 | `_CANONICALIZATION_VERSION = 3`. The snapshot ID is `aip:snapshot:v1:` plus the full SHA-256 of sorted-key canonical JSON of the state. The frozen golden pin is `aip:snapshot:v1:0bfcbdeda363876559bb78f53e432f1a73c368e9fbd4d21c37f8f4335ecdbd5f`. | With no v2 records, the bytes, the version and this pin must stay identical (I1 §11.1; L13). The conditional v2 contribution is frozen in slice I1.3. |
+
+**B1 seed literal.** The hashed v1 seed is exactly the following (it is written outside the table so that no Markdown pipe escaping appears in it):
+
+```text
+subject_id|relation_type|object_id
+```
+
+Here `|` is the literal U+007C separator and there are no backslashes (`f"{subject_id}|{relation_type}|{object_id}".encode()`, `ids.py`:45).
 
 ---
 
@@ -89,19 +97,36 @@ Unscoped v0.5 qualification, coverage and `NOT_OBSERVED_IN_WINDOW` semantics are
 
 ## 5. Locality dimension support matrix (I1 §4.2, parent §6.1)
 
-| Dimension | Status in `locality-contract/1` | Only admissible source | Missing or unavailable value | Requested but not admitted |
+The **ingestion** column is used only when the original CLIENT/accepted-CALLS input fails a v2 eligibility check. **No v2 record is written.** The specific reason goes only to the bounded, sanitized ingestion diagnostics and the per-source import/migration report (I1 §10.2). It is never a query-visible architecture fact.
+
+The **query** column applies only to a candidate with a retained v2 record. Candidates are evaluated in the §10.1 phase order: (1) request preflight, (2) selected source/evidence mode, (3) environment and time, (4) captured Pod/owner identity. The first terminating phase gives the primary disposition, and later phases are not evaluated.
+
+| Dimension | Status in `locality-contract/1` | Only admissible source | Ingestion failure: diagnostic/report only, no v2 written | Query-time result for a retained v2 candidate (§10.1 phase) |
 |---|---|---|---|---|
-| `environment` | **Admitted, required** | Accepted fact `deployment.environment.name`; the CLIENT value must be exactly equal at ingestion | No v2 (ingestion); `INSUFFICIENT_EVIDENCE` | — |
-| Whole UTC-day window | **Admitted, required** | The request's inclusive date range. Normalization is frozen in slice I1.2. | — | Sub-day or partial-day: `UNSUPPORTED` / `LOCALITY_UNSUPPORTED_TEMPORAL_RESOLUTION` |
-| Caller cluster UID | **Admitted, required, exact** | Actual CLIENT `k8s.cluster.uid`, which must equal the captured envelope `clusterUid` | `INSUFFICIENT_EVIDENCE` / `LOCALITY_CLUSTER_UID_MISSING` | — |
-| Caller Pod UID | **Admitted as attribution identity only** | Actual CLIENT `k8s.pod.uid` | `INSUFFICIENT_EVIDENCE` / `LOCALITY_POD_UID_MISSING` | — |
-| Caller namespace | **Admitted, derived at query time** | The captured Pod/owner-chain namespace in the selected snapshot. The CLIENT `k8s.namespace.name` is a consistency check only. | `UNRESOLVED` | — |
-| Caller Workload | **Admitted, derived at query time** | A unique supported captured owner chain (Deployment, StatefulSet, DaemonSet) in the selected snapshot | `UNRESOLVED` / `AMBIGUOUS` / `CONFLICT` per I1 §9–10 | — |
-| Target runtime locality | **Not established by this contract** | Separately evidenced target placement only; none is admitted in the minimum slice | Unknown (L20) | — |
-| Region | **Unsupported** | — | — | `UNSUPPORTED` / `LOCALITY_UNSUPPORTED_DIMENSION` |
-| Tenant | **Unsupported** | — | — | `UNSUPPORTED` / `LOCALITY_UNSUPPORTED_DIMENSION` |
-| Service-version locality | **Unsupported** (`service.version` never mints a canonical Service) | — | — | `UNSUPPORTED` / `LOCALITY_UNSUPPORTED_DIMENSION` |
-| Messaging locality (SENDS / PUBLISHES_TO / …) | **Unsupported** | — | — | `UNSUPPORTED` / `LOCALITY_UNSUPPORTED_RELATION` |
+| `environment` | **Admitted, required** | Accepted fact `deployment.environment.name`. The CLIENT value must be present and exactly equal at ingestion. | CLIENT environment missing: `INSUFFICIENT_EVIDENCE` / `LOCALITY_CLIENT_IDENTITY_MISSING`. Present but different: `INAPPLICABLE` / `LOCALITY_CLIENT_FACT_ENVIRONMENT_MISMATCH`. | Phase 3: the persisted v2 environment differs from the exact query environment, giving `INAPPLICABLE` (exact environment-mismatch limitation). No alias or widening, and owner identity is not evaluated. |
+| Whole UTC-day window | **Admitted, required** | The request's inclusive date range. Normalization is frozen in slice I1.2. | CLIENT and fact timestamps not in the same UTC day: `INAPPLICABLE` / `LOCALITY_CLIENT_FACT_DAY_MISMATCH`. | Phase 1: sub-day or partial-day request, giving `UNSUPPORTED` / `LOCALITY_UNSUPPORTED_TEMPORAL_RESOLUTION`. Phase 3: v2 bucket `last_seen` outside the selected days, giving `INAPPLICABLE` / `LOCALITY_OBSERVATION_TEMPORAL_MISMATCH`. |
+| Caller cluster UID | **Admitted, required, exact** | Actual CLIENT `k8s.cluster.uid`, which must equal the selected captured envelope `clusterUid` | Missing: `INSUFFICIENT_EVIDENCE` / `LOCALITY_CLUSTER_UID_MISSING`. | Phase 4: differs from the selected envelope `clusterUid`, giving `CONFLICT` / `LOCALITY_CLUSTER_UID_CONFLICT`. The v2 record is retained unchanged (L16, L34). |
+| Caller Pod UID | **Admitted as attribution identity only** | Actual CLIENT `k8s.pod.uid` | Missing: `INSUFFICIENT_EVIDENCE` / `LOCALITY_POD_UID_MISSING`. | Phase 4: no matching captured Pod UID in the selected capture, giving `UNRESOLVED` / `LOCALITY_CAPTURE_MISSING_POD`. The v2 record is retained unchanged (L18). |
+| Capture revision/time | **Admitted, required** positive prerequisite (I1 §4.2) | An identified, admitted **selected** `CAPTURED_RESOURCE` contribution with its source instance/revision and a real, parseable envelope `capturedAt`. `capturedAt` is evidence of that capture, not continuous or timeless Pod presence (I1 §8–9, B12). | Not applicable. The capture is selected only at query time, and ingestion never guesses it (I1 §6.2). | Phase 2: selected contribution is `DECLARED_MANIFEST`, giving `UNSUPPORTED` / `LOCALITY_CAPTURE_MODE_UNSUPPORTED` as a terminal per-candidate result (L17, L37). Phase 3: missing or unparseable `capturedAt` gives `INSUFFICIENT_EVIDENCE` / `LOCALITY_CAPTURE_TIMESTAMP_MISSING`; `capturedAt` outside the selected days under the exact inclusive Path C predicate (B9) gives `INAPPLICABLE` / `LOCALITY_CAPTURE_TEMPORAL_MISMATCH` (L31, L36). |
+| Caller namespace | **Admitted, derived at query time** | The captured Pod/owner-chain namespace in the selected snapshot. The CLIENT `k8s.namespace.name` is a consistency check only. | Only a contradiction inside the CLIENT Resource/carrier: `CONFLICT` / `LOCALITY_CLIENT_INTERNAL_CONFLICT`. | Phase 4: no resolvable captured chain gives `UNRESOLVED` / `LOCALITY_POD_OWNER_UNRESOLVED`. A present CLIENT namespace that contradicts the captured one gives `CONFLICT` / `LOCALITY_NAMESPACE_CONFLICT`, and the v2 record is retained (L34). |
+| Caller Workload | **Admitted, derived at query time** | A unique supported captured owner chain (Deployment, StatefulSet, DaemonSet) in the selected snapshot | Not applicable. It is never inferred at ingestion. | Phase 4: `UNRESOLVED` / `LOCALITY_POD_OWNER_UNRESOLVED`, `AMBIGUOUS` / `LOCALITY_POD_OWNER_AMBIGUOUS` or `CONFLICT` / `LOCALITY_POD_OWNER_CONFLICT` under Path C (L19). |
+| Target runtime locality | **Not established by this contract** | Separately evidenced target placement only; none is admitted in the minimum slice | Not applicable. | Unknown (L20). |
+| Region | **Unsupported** | — | — | Phase 1: `UNSUPPORTED` / `LOCALITY_UNSUPPORTED_DIMENSION` |
+| Tenant | **Unsupported** | — | — | Phase 1: `UNSUPPORTED` / `LOCALITY_UNSUPPORTED_DIMENSION` |
+| Service-version locality | **Unsupported** (`service.version` never mints a canonical Service) | — | — | Phase 1: `UNSUPPORTED` / `LOCALITY_UNSUPPORTED_DIMENSION` |
+| Messaging locality (SENDS / PUBLISHES_TO / …) | **Unsupported** | — | — | Phase 1: `UNSUPPORTED` / `LOCALITY_UNSUPPORTED_RELATION` |
+
+Other ingestion-only refusals (I1 §10.1–10.2):
+- `SERVER_ONLY` gives `LOCALITY_SERVER_ONLY_NO_CLIENT`.
+- Any other absent CLIENT carrier gives `LOCALITY_CLIENT_IDENTITY_MISSING`.
+- When a carrier exists but specific fields are missing, only the specific field codes are emitted, **never together with** the generic carrier-missing code (L35).
+
+**Query-time abstention when only v1 remains (I1 §10.2; DoD 9; L35).** A read-side query that finds only an unscoped v1 bucket **cannot know** whether the underlying CLIENT lacked a carrier, a Pod UID or a cluster UID, or failed another guard. The new locality answer therefore:
+- abstains generically, with `INSUFFICIENT_EVIDENCE` / `LOCALITY_NO_ELIGIBLE_LOCAL_OBSERVATION`;
+- adds `LOCALITY_LOCAL_COVERAGE_UNAVAILABLE` where relevant;
+- adds `LOCALITY_LEGACY_V1_UNSCOPED` **only** where legacy-only source/inventory status is independently known.
+
+It MUST NOT expose or reconstruct any ingestion-specific code from the ingestion column, imply that every v1 contribution was refused, or invent a positive locality. The specific cause is disclosed only in the import/migration report's own surface.
 
 Admitted relation: HTTP `CALLS` (caller Service → provider **Operation**) only. Other v0.5 relations keep their existing query semantics; only the new relation-locality surface reports them as unsupported for locality qualification.
 
@@ -163,6 +188,7 @@ Documentation, examples and later types must not use one term for the other.
 | §4.3 internal types | §3 |
 | §5 / parent §8 claim-kind × evidence matrix; qualification boundary | §4, §4.1 |
 | §4.2 / parent §6.1 dimensions, unsupported set, no wildcard | §5 |
+| §4.2 capture revision/time prerequisite; §10.1 phase order; §10.2 ingestion-diagnostic vs query-visible split (DoD 9, L35) | §5 (capture row, ingestion/query columns, v1-only abstention) |
 | DoD 2 and 10 no-inference (parent gates 3 and 6) | §6 |
 | §5.1 Operation → provider Service constraints | §7 |
 | §4.3 / DoD 11 observation window vs Intent | §8 |
