@@ -23,3 +23,10 @@ updates:
     directory: "/examples/runtime-demo"
     schedule:
       interval: "weekly"
+
+  # docker-compose.yml / docker-compose.demo.yml pin images by digest; the "docker" ecosystem above
+  # only reads Dockerfiles.
+  - package-ecosystem: "docker-compose"
+    directory: "/"
+    schedule:
+      interval: "weekly"
