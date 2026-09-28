@@ -255,11 +255,27 @@ For each pending CLIENT, the bounded cross-batch carrier (`PendingHttpSpan`, B2)
 ## 12. Timestamps and UTC-day assignment (I1 §8) **[owner decision, I1.2]**
 
 1. **Event instant precision.** The event instant is the receiver's timezone-aware UTC `datetime` at **microsecond** precision, `datetime.fromtimestamp(unix_nano / 1e9, tz=UTC)` (B7). Sub-microsecond information is not retained.
-   - *Disclosed baseline property:* the float division can round a value within about 0.5 µs of UTC midnight **up** into the next day. The contract accepts the receiver's instant as the event time. The same instant is used for the v1 bucket, the v2 bucket, `first_seen`/`last_seen` and window membership, so the result is always internally consistent. It is never re-derived from the raw nanoseconds.
+   - *Disclosed baseline property:* the float division can round a value within about 0.5 µs of UTC midnight **up** into the next day. The contract accepts each receiver-converted instant as that span's time and never re-derives it from the raw nanoseconds. Which of the two instants plays which role is fixed in §12.6.
 2. **UTC day of an instant:** the calendar date of the instant **after conversion to UTC**. An instant with no timezone is not admissible.
-3. **Ingestion guard 4:** `client_timestamp` and the accepted fact timestamp must have the same UTC day (§12.2). That day is the v2 `bucket_utc_day`. A difference gives `INAPPLICABLE` / `LOCALITY_CLIENT_FACT_DAY_MISMATCH` at ingestion, with no v2 written and v1 unchanged (L11).
+3. **Ingestion guard 4:** `client_timestamp` and the accepted fact timestamp must have the same UTC day (§12.2). That common day is the v2 `bucket_utc_day`, and it always equals the v1 bucket day of the same interaction. A difference gives `INAPPLICABLE` / `LOCALITY_CLIENT_FACT_DAY_MISMATCH` at ingestion, with no v2 written and v1 unchanged (L11).
 4. **Query-time instants** (`capturedAt`) are parsed by the existing Path C rule, unchanged: `datetime.fromisoformat`. A value without an explicit UTC offset is unparsable (PR #292), and unparsable or missing gives `LOCALITY_CAPTURE_TIMESTAMP_MISSING`. After parsing, comparisons are between aware instants, so offsets are honoured (`2026-09-29T01:30:00+02:00` is `2026-09-28T23:30:00Z`).
 5. **Canonical serialization** of an instant is `YYYY-MM-DDTHH:MM:SS.ffffffZ` in UTC with exactly six fractional digits. This is the existing `format_utc_timestamp` form (`canonical_json.py`:33).
+6. **Timestamp roles (the CLIENT instant and the fact instant are different values).** For a paired call, the accepted fact timestamp is the SERVER `end_time` (B5), and `client_timestamp` is the CLIENT `end_time` (§10.1). The two need not be equal. Their roles are fixed as follows:
+
+| Use | Timestamp | Why |
+|---|---|---|
+| v1 bucket day, v1 `first_seen`/`last_seen` | Accepted fact timestamp | Existing v0.5 path (`adapter.py`:137–146), unchanged |
+| v2 `bucket_utc_day` | Accepted fact timestamp's UTC day, which I-4 has verified equals the CLIENT's UTC day | Same day as v1 by construction |
+| v2 `first_seen`/`last_seen`, merged as min/max over contributions like v1 | **Accepted fact timestamp** | This is the value the query-time phase 3 check (`LOCALITY_OBSERVATION_TEMPORAL_MISMATCH`) and the Path C `last_seen` predicate read. It is consistent with the v1 path, so v1 and v2 of one interaction never disagree about when it was observed. |
+| Ingestion guard I-4 | Both: same UTC day | I1 §6.2(4) |
+| `CallerAttributionV1.client_timestamp` | CLIENT `end_time` | Attribution metadata only. Not a v2 key input, not `first_seen`/`last_seen`, and not read by any query-time guard. |
+
+For `CLIENT_ONLY` the accepted fact timestamp already is the CLIENT `end_time` (B4), so the two roles coincide.
+
+Paired examples (vectors `T01`–`T03` in [`i1-vectors/utc-day-window.json`](i1-vectors/utc-day-window.json)):
+- **T01:** CLIENT `end_time` `2026-09-28T10:00:00.250000Z`, SERVER/fact `2026-09-28T10:00:00.200000Z`. I-4 passes; v1 and v2 day `2026-09-28`; v2 `first_seen` = `last_seen` = `2026-09-28T10:00:00.200000Z`, the fact instant and not the CLIENT instant.
+- **T02:** CLIENT `2026-09-29T00:00:00.000100Z`, SERVER/fact `2026-09-28T23:59:59.999900Z`. I-4 fails with `LOCALITY_CLIENT_FACT_DAY_MISMATCH`; v1 is recorded on `2026-09-28` unchanged; no v2.
+- **T03:** `CLIENT_ONLY` at `2026-09-28T23:59:59.999999Z`. I-4 passes; v2 day `2026-09-28`; `first_seen` = `last_seen` = that instant.
 
 ## 13. `ScopedDayWindowV1`: whole-UTC-day window (I1 §8)
 
@@ -361,6 +377,7 @@ A §15.1 ingestion code is never emitted in a query answer.
 | §4.2 minimum positive dimensions; §6.2 ingestion guards (2), (3), (5) | §10, §14 |
 | §6.1 carrier in both arrival orders; bounded; `CLIENT_ONLY`/`SERVER_ONLY` | §11 |
 | §8 timestamp precision, UTC parser, day-range validation, serialization, midnight boundary | §12, §13, vectors |
+| §8 CLIENT vs accepted-fact timestamp roles; v2 `last_seen` input to the phase 3 check | §12.6, vectors T01–T03 |
 | §6.2 guard split; query-time conflicts never suppress v2 | §14, §15.2 |
 | §10 taxonomy; §10.1 phase gates, terminal per-candidate `UNSUPPORTED`, within-phase precedence and sorted reasons (L35–L37) | §15 |
 | §10.2 ingestion-only visibility; generic read-side abstention | §15.1, §15.3 |

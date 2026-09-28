@@ -92,6 +92,29 @@ def test_capture_instant_requires_explicit_offset(vector: dict) -> None:
     assert (_parse_instant(vector["value"]) is not None) is vector["parsable"]
 
 
+def _utc_day(value: str) -> str:
+    instant = _parse_instant(value)
+    assert instant is not None
+    return instant.astimezone(UTC).date().isoformat()
+
+
+@pytest.mark.parametrize("vector", DAY_WINDOW["timestamp_roles"], ids=lambda v: v["id"])
+def test_timestamp_roles(vector: dict) -> None:
+    client_day, fact_day = _utc_day(vector["client_timestamp"]), _utc_day(vector["fact_timestamp"])
+    # v1 is always bucketed by the accepted fact timestamp; ingestion guard I-4 compares UTC days.
+    assert fact_day == vector["v1_bucket_day"]
+    assert (client_day == fact_day) is vector["i4_passes"]
+    if not vector["i4_passes"]:
+        assert vector["reason"] == "LOCALITY_CLIENT_FACT_DAY_MISMATCH"
+        assert "v2_bucket_utc_day" not in vector
+        return
+    # v2 takes its day and first/last_seen from the accepted fact timestamp, never the CLIENT's.
+    assert vector["v2_bucket_utc_day"] == fact_day
+    fact = _parse_instant(vector["fact_timestamp"])
+    assert fact is not None
+    assert vector["v2_first_seen"] == vector["v2_last_seen"] == _serialize(fact)
+
+
 def test_vector_ids_are_unique() -> None:
     ids = [
         v["id"]
@@ -99,6 +122,7 @@ def test_vector_ids_are_unique() -> None:
         for v in DAY_WINDOW[group]
     ]
     ids += [v["id"] for v in DAY_WINDOW["capture_instant_parsing"]]
+    ids += [v["id"] for v in DAY_WINDOW["timestamp_roles"]]
     assert len(ids) == len(set(ids))
 
 
