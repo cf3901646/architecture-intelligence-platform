@@ -87,7 +87,7 @@ forbidden_modules = [
     "app.ai", "app.analysis", "app.answer_router", "app.api", "app.architecture_intelligence",
     "app.canonical", "app.deps", "app.graph", "app.graph_schema", "app.ingestion", "app.intent",
     "app.main", "app.mcp", "app.provenance", "app.settings", "app.sources", "app.telemetry",
-    "app.validation",
+    "app.validation", "app.version",
 ]
 
 [[tool.importlinter.contracts]]
@@ -105,13 +105,14 @@ name = "The LLM layer stays out of the deterministic core and MCP"
 type = "forbidden"
 source_modules = [
     "app.analysis", "app.architecture_intelligence", "app.canonical", "app.graph",
-    "app.ingestion", "app.intent", "app.mcp", "app.provenance", "app.qualification",
-    "app.sources", "app.telemetry", "app.validation",
+    "app.graph_schema", "app.ingestion", "app.intent", "app.mcp", "app.provenance",
+    "app.qualification", "app.settings", "app.sources", "app.telemetry", "app.validation",
+    "app.version",
 ]
 forbidden_modules = ["app.ai", "openai"]
 
 [[tool.importlinter.contracts]]
-name = "Leaf packages import no other app package"
+name = "Leaf packages import no non-leaf app package"
 type = "forbidden"
 source_modules = ["app.provenance", "app.intent", "app.graph_schema", "app.version"]
 forbidden_modules = [
@@ -119,6 +120,11 @@ forbidden_modules = [
     "app.canonical", "app.deps", "app.graph", "app.ingestion", "app.main", "app.mcp",
     "app.qualification", "app.settings", "app.sources", "app.telemetry", "app.validation",
 ]
+
+[[tool.importlinter.contracts]]
+name = "Leaf packages don't import each other"
+type = "independence"
+modules = ["app.provenance", "app.intent", "app.graph_schema", "app.version"]
 
 [[tool.importlinter.contracts]]
 name = "The domain model and source contracts stay framework-free"
