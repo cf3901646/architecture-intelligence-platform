@@ -209,7 +209,14 @@ def _persist_fact(tx: neo4j.ManagedTransaction, fact: ObservedFactCandidate) -> 
     tx.run(_MERGE_EVIDENCE_QUERY, id=merged.id, props=merged.model_dump(exclude={"id"}))
 
     query = _MERGE_FACT_RELATION_QUERY.format(relation_type=fact.relation_type)
-    tx.run(query, subject_id=fact.subject_id, object_id=fact.object_id, evidence_id=merged.id)
+    # Cypher can't parametrize a relationship type; the check at the top of this function rejects
+    # any type outside KNOWN_RELATION_TYPES, so the formatted query is not injectable.
+    tx.run(
+        query,  # pyright: ignore[reportArgumentType]
+        subject_id=fact.subject_id,
+        object_id=fact.object_id,
+        evidence_id=merged.id,
+    )
 
 
 def _persist_batch_tx(tx: neo4j.ManagedTransaction, batch: ObservationBatch) -> None:

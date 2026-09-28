@@ -12,9 +12,9 @@ aren't yet guaranteed stable pre-1.0.
 ### Added
 
 - Static type checking: `uv run pyright` (standard mode) now runs in CI's `quality` job over
-  `app/canonical`, `app/architecture_intelligence`, `app/graph`, `app/ingestion` and
-  `app/sources`, with the other packages to follow one at a time. Existing type errors in those
-  packages were fixed without behavior changes, except the one listed under Changed.
+  `app/canonical`, `app/architecture_intelligence`, `app/graph`, `app/ingestion`, `app/sources`
+  and `app/telemetry`, with the other packages to follow one at a time. Existing type errors in
+  those packages were fixed without behavior changes, except the one listed under Changed.
 
 ### Changed
 

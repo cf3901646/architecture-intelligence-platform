@@ -1,3 +1,4 @@
+from collections.abc import Iterable
 from datetime import UTC, datetime
 from typing import Any
 
@@ -38,7 +39,7 @@ def _any_value_to_python(value: AnyValue) -> Any:
     return getattr(value, which)
 
 
-def _attributes_to_dict(attributes: list[KeyValue]) -> dict[str, Any]:
+def _attributes_to_dict(attributes: Iterable[KeyValue]) -> dict[str, Any]:
     return {kv.key: _any_value_to_python(kv.value) for kv in attributes}
 
 
@@ -77,7 +78,8 @@ def decode_export_request(raw: bytes) -> list[RuntimeSpan]:
     spans: list[RuntimeSpan] = []
     for resource_spans in request.resource_spans:
         identity = _resource_identity(resource_spans.resource)
-        if not identity["service_name"]:
+        service_name = identity.pop("service_name")
+        if not service_name:
             # Can't identify the reporting service - a routine shape in a multi-service batch
             # export, not a corrupted request, so skip just this block rather than the whole batch.
             continue
@@ -93,6 +95,7 @@ def decode_export_request(raw: bytes) -> list[RuntimeSpan]:
                         start_time=_to_datetime(span.start_time_unix_nano),
                         end_time=_to_datetime(span.end_time_unix_nano),
                         attributes=_attributes_to_dict(span.attributes),
+                        service_name=service_name,
                         **identity,
                     )
                 )

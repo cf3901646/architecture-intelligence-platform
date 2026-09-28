@@ -12,6 +12,7 @@ The guards are scoped to the messaging path only - `app.telemetry.service_resolv
 from __future__ import annotations
 
 import re
+from collections.abc import Sequence
 from dataclasses import dataclass
 
 from app.canonical import ids
@@ -87,7 +88,7 @@ def _classify_destination_kind(raw: object) -> str:
 
 
 def _match_declared_queue(
-    candidates: list[DeclaredQueueCandidate],
+    candidates: Sequence[DeclaredQueueCandidate | DeclaredTopicCandidate],
     *,
     messaging_system: str | None,
     destination_name: str,
