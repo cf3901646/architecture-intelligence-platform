@@ -5,6 +5,9 @@ release build can't silently change underneath us when an upstream tag moves.
 their own frozen conventions. Dependabot bumps the Dockerfile and compose pins; the testcontainers
 Neo4j literals aren't visible to it, so they must match `docker-compose.yml`'s pin - a Dependabot
 bump of that pin fails here until the literals follow.
+
+Files that a frozen release profile checksums can't change without invalidating that profile, so
+they stay unpinned until the profile is next re-frozen (`_FROZEN_UNPINNED`).
 """
 
 from __future__ import annotations
@@ -21,6 +24,11 @@ _DIGEST_PINNED = re.compile(r"^[^\s@]+:[^\s@]+@sha256:[0-9a-f]{64}$")
 _COMPOSE_IMAGE = re.compile(r"^\s*image:\s*(\S+)\s*$", re.MULTILINE)
 _DOCKERFILE_IMAGE = re.compile(r"^\s*(?:FROM\s+(\S+)|COPY\s+--from=(\S+)\s)", re.MULTILINE)
 _NEO4J_CONTAINER = re.compile(r'Neo4jContainer\(\s*"([^"]+)"')
+
+_GOLDEN_PATH_SHA256SUMS = REPO_ROOT / "examples" / "release-golden-path" / "SHA256SUMS"
+# Component files of the frozen v0.5.0 release golden-path profile: pin them when that profile is
+# re-frozen, not before.
+_FROZEN_UNPINNED = {"examples/runtime-demo/Dockerfile"}
 
 
 def _tracked(pattern: str) -> list[Path]:
@@ -73,9 +81,20 @@ def test_image_references_are_found():
     } <= sources
 
 
-@pytest.mark.parametrize(("source", "image"), _image_refs())
+@pytest.mark.parametrize(
+    ("source", "image"),
+    [(source, image) for source, image in _image_refs() if source not in _FROZEN_UNPINNED],
+)
 def test_image_is_pinned_by_digest(source, image):
     assert _DIGEST_PINNED.match(image), f"{source}: {image} is not pinned by digest"
+
+
+def test_frozen_unpinned_exceptions_are_still_frozen():
+    frozen = {
+        line.split(maxsplit=1)[1] for line in _GOLDEN_PATH_SHA256SUMS.read_text().splitlines()
+    }
+    for source in _FROZEN_UNPINNED:
+        assert source in frozen, f"{source} is no longer frozen - pin it and drop the exception"
 
 
 def test_testcontainers_neo4j_matches_the_dev_compose_pin():

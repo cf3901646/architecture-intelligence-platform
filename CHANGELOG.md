@@ -28,10 +28,11 @@ aren't yet guaranteed stable pre-1.0.
 
 ### Changed
 
-- Container images are pinned by digest everywhere outside `docs/`: Neo4j 5.26.31 in the dev and
-  demo stacks, integration tests and harnesses, and Python 3.14.7 and uv 0.12.19 in the
-  Dockerfiles (the exact base images v0.5.0 was built from). Dependabot now also updates the
-  compose files, and a unit test rejects unpinned images.
+- Container images are pinned by digest outside `docs/`: Neo4j 5.26.31 in the dev and demo
+  stacks, integration tests and harnesses, and Python 3.14.7 and uv 0.12.19 in the root
+  `Dockerfile` (the exact base images v0.5.0 was built from). `examples/runtime-demo/Dockerfile`
+  stays unpinned because the frozen v0.5.0 release golden-path profile checksums it. Dependabot now
+  also updates the compose files, and a unit test rejects unpinned images.
 - `ServiceIdentityResolution` now rejects, at construction, a `RESOLVED` outcome without a
   `service_id` (and a rejected outcome with one). Every built-in resolver already complied; a custom
   `ServiceIdentityResolver` returning an inconsistent resolution now fails loudly instead of
