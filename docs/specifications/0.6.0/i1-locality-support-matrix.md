@@ -1,6 +1,6 @@
 # AIP v0.6.0 I1 — Locality Support Matrix
 
-**Status:** I1 supporting deliverable, slice I1.1 (baseline inventory, role vocabulary and applicability matrix). Contract freeze artifact under review; it claims no implementation and no executed conformance.  
+**Status:** I1 supporting deliverable. Slice I1.1 (§§1–9: baseline inventory, role vocabulary and applicability matrix) was accepted in PR #307. Slice I1.2 (§§10–16: CLIENT field allowlist, UTC-day window and phase-gated disposition contract) is under review. Contract freeze artifact under review; it claims no implementation and no executed conformance.  
 **Release / increment:** `v0.6.0` — Locality-Aware Current State / I1  
 **Governing specification:** [I1 — Locality and Evidence Applicability Contract](i1-locality-and-evidence-applicability.md) (accepted, [PR #283](https://github.com/michaelegner/architecture-intelligence-platform/pull/283), merge `aafb03d5735d78b2741a3dc8a2d0336079535ed6`), under the [accepted v0.6.0 parent](specification.md) (PR #278, merge `be26edcd133edc8576a85d301be33b836335c41b`).  
 **Code baseline inspected:** `main` at `77479c107ddc719e465cf6827c4bedd18afea8bd`. Every `file:line` reference below is to that commit.  
@@ -193,4 +193,174 @@ Documentation, examples and later types must not use one term for the other.
 | §5.1 Operation → provider Service constraints | §7 |
 | §4.3 / DoD 11 observation window vs Intent | §8 |
 
-Deferred to later I1 slices: the CLIENT allowlist and exact comparison rules, the UTC-day normalization and golden vectors, and the §10.1 phase-gate table (I1.2); the v2 key, vectors and snapshot contract (I1.3); the capture runbook (I1.4); and the independent L01–L37 expected dossier and completion record (I1.5).
+Slice I1.2 content is in §§10–16 below. Still deferred: the v2 key, vectors and snapshot contract (I1.3); the capture runbook (I1.4); and the independent L01–L37 expected dossier and completion record (I1.5).
+
+---
+
+# Slice I1.2: scope, UTC-day, CLIENT field and disposition contract
+
+Sections 10–16 freeze the **implementation-level spellings** that I1 §15 delegates to I1: the CLIENT allowlist and normalization, the carrier retention set, the guard split, timestamp precision, UTC-day window normalization and the §10.1 disposition lookup. Every row cites the accepted I1 rule it spells out. Owner decisions taken for this slice are marked **[owner decision, I1.2]**. The spec left each of them open to I1, and none weakens it.
+
+## 10. CLIENT caller-attribution allowlist and normalization (I1 §4.2, §6.1–6.2)
+
+**Normalization rule identity:** `otel-client-caller-attribution`, version `1`. This is recorded as `CallerAttributionV1.normalization_rule` and in v2 lineage (I1 §7.1). The naming follows the existing `otel-runtime-identity-observation` rule (`RuntimeIdentityObservation`, B8).
+
+### 10.1 Admitted fields
+
+All values are read from the Resource of the **same original CLIENT span** that produced the accepted v0.5 CALLS (I1 §6.1). No other Resource or span attribute is admitted. Every field below is already read by `_resource_identity` (B6).
+
+| Field | OTel source | Role | Required for v2 |
+|---|---|---|---|
+| `client_environment` | `deployment.environment.name` | Compared with the accepted fact environment (ingestion guard 3) | **Yes** |
+| `client_pod_uid` | `k8s.pod.uid` | Attribution identity; a v2 key input | **Yes** |
+| `client_cluster_uid` | `k8s.cluster.uid` | Exact cluster identity; a v2 key input | **Yes** |
+| `client_timestamp` | The CLIENT span's `end_time`, as converted by the receiver (§12) | The CLIENT event instant for ingestion guard 4 | **Yes** (always present on a decoded span) |
+| `client_namespace` | `k8s.namespace.name` | Optional consistency check against the captured Pod namespace, **at query time only** | No |
+| `client_pod_name` | `k8s.pod.name` | Optional consistency check against the captured Pod name, at query time only | No |
+| `client_deployment_name` / `client_statefulset_name` / `client_daemonset_name` | `k8s.deployment.name` / `k8s.statefulset.name` / `k8s.daemonset.name` | Optional consistency check against the captured Workload kind and name at query time, and CLIENT-internal kind check at ingestion (§10.3) | No |
+
+`client_timestamp` is the CLIENT span's `end_time`. That is the instant the existing adapter already uses for a CLIENT-sourced fact (`CLIENT_ONLY`, B4) and for `RuntimeIdentityObservation` (B8), so no second CLIENT clock reading is introduced.
+
+`service.version` and `service.namespace` stay what they are in v0.5: existing Service-resolution and source metadata. They are **not** locality dimensions and not v2 key inputs (I1 §4.2, §7.1).
+
+### 10.2 Value normalization **[owner decision, I1.2]**
+
+1. **Admissible value:** an admitted attribute is present only if its decoded value is a **non-empty string**. A missing attribute, an empty string or any non-string value (int, bool, array, kvlist, bytes) is treated as **missing**. For example, a non-string `k8s.pod.uid` gives `LOCALITY_POD_UID_MISSING`.
+2. **Comparison:** exact equality of the string's code points (and so of its UTF-8 bytes). There is no trimming, case-folding, Unicode normalization, alias, prefix or wildcard matching.
+3. **No repair:** a value is never reconstructed from another attribute, a name, a label or another span.
+
+Duplicate Resource keys: the receiver keeps the last value for a repeated key (`_attributes_to_dict`, `otlp_receiver.py`:42–43). This contract admits the value the receiver yields and **does not** detect duplicates. Detecting them would need a receiver change, which is outside this contract.
+
+### 10.3 CLIENT-internal contradiction (I1 §6.2(5)) **[owner decision, I1.2]**
+
+The complete, closed set of CLIENT-internal contradictions that refuse v2 with `CONFLICT` / `LOCALITY_CLIENT_INTERNAL_CONFLICT` is:
+
+| Rule | Condition, evaluated on admissible values only (§10.2) | Why it is knowable at ingestion |
+|---|---|---|
+| `CLIENT_MULTIPLE_WORKLOAD_KINDS` | More than one of `k8s.deployment.name`, `k8s.statefulset.name`, `k8s.daemonset.name` is present | A Pod has at most one supported controlling Workload kind (B12). Two kind names in one Resource contradict each other without any capture. This mirrors v0.5 Path C, where any kind name other than the resolved kind is contradictory (`_consistency_attributes_agree`, B10). |
+
+No other combination of CLIENT values is an ingestion contradiction. In particular, namespace, Pod name and Workload name are **never** compared with anything at ingestion, because the capture they must match is selected only at query time (I1 §6.2). Their mismatches are query-time `CONFLICT`s that retain the v2 record (§15, L34).
+
+## 11. Transient carrier retention (I1 §6.1)
+
+For each pending CLIENT, the bounded cross-batch carrier (`PendingHttpSpan`, B2) must additionally retain the admitted values from §10.1: `client_environment` (already carried as `environment`), `client_pod_uid`, `client_cluster_uid`, the optional consistency fields, and the CLIENT `end_time` (already carried as `timestamp`).
+
+| Requirement | Rule |
+|---|---|
+| Arrival orders | CLIENT-first (the SERVER later pops the waiting CLIENT) and SERVER-first (the CLIENT later pops the waiting SERVER) must yield the same `CallerAttributionV1` as an in-batch pair (L07, L08). |
+| Source of caller values | Always the original CLIENT span's Resource. The SERVER Resource, `peer.service`, a `RuntimeIdentityObservation`, `DEPLOYED_AS` or trace parentage never fill a missing caller value (I1 §6.1). |
+| Bounds | TTL (60 s default) and size (10 000 default) are unchanged. The extra fields are bounded strings from the §10.1 allowlist only. No raw span or Resource payload is retained, and nothing from the carrier is written to Neo4j. |
+| Expiry | A TTL-expired CLIENT that v0.5 turns into a `CLIENT_ONLY` CALLS keeps its carried values and may be v2-eligible. An expired SERVER has no CLIENT and never yields v2 (`LOCALITY_SERVER_ONLY_NO_CLIENT`, B4, L09). A size-evicted CLIENT yields nothing, as today (B3). |
+
+## 12. Timestamps and UTC-day assignment (I1 §8) **[owner decision, I1.2]**
+
+1. **Event instant precision.** The event instant is the receiver's timezone-aware UTC `datetime` at **microsecond** precision, `datetime.fromtimestamp(unix_nano / 1e9, tz=UTC)` (B7). Sub-microsecond information is not retained.
+   - *Disclosed baseline property:* the float division can round a value within about 0.5 µs of UTC midnight **up** into the next day. The contract accepts the receiver's instant as the event time. The same instant is used for the v1 bucket, the v2 bucket, `first_seen`/`last_seen` and window membership, so the result is always internally consistent. It is never re-derived from the raw nanoseconds.
+2. **UTC day of an instant:** the calendar date of the instant **after conversion to UTC**. An instant with no timezone is not admissible.
+3. **Ingestion guard 4:** `client_timestamp` and the accepted fact timestamp must have the same UTC day (§12.2). That day is the v2 `bucket_utc_day`. A difference gives `INAPPLICABLE` / `LOCALITY_CLIENT_FACT_DAY_MISMATCH` at ingestion, with no v2 written and v1 unchanged (L11).
+4. **Query-time instants** (`capturedAt`) are parsed by the existing Path C rule, unchanged: `datetime.fromisoformat`. A value without an explicit UTC offset is unparsable (PR #292), and unparsable or missing gives `LOCALITY_CAPTURE_TIMESTAMP_MISSING`. After parsing, comparisons are between aware instants, so offsets are honoured (`2026-09-29T01:30:00+02:00` is `2026-09-28T23:30:00Z`).
+5. **Canonical serialization** of an instant is `YYYY-MM-DDTHH:MM:SS.ffffffZ` in UTC with exactly six fractional digits. This is the existing `format_utc_timestamp` form (`canonical_json.py`:33).
+
+## 13. `ScopedDayWindowV1`: whole-UTC-day window (I1 §8)
+
+| Item | Frozen rule |
+|---|---|
+| Input | `first_day`, `last_day`, each a string matching exactly `^[0-9]{4}-[0-9]{2}-[0-9]{2}$` that is a valid proleptic-Gregorian calendar date (so `2028-02-29` is valid, `2026-02-29` invalid). Other ISO-8601 forms (`20260928`, `2026-W40-1`, a date-time) are rejected. |
+| Order | `first_day <= last_day`, otherwise rejected. A one-day window has `first_day == last_day`. |
+| Normalized start | `first_day` at `00:00:00.000000` UTC |
+| Normalized end | `(last_day + 1 day)` at `00:00:00.000000` UTC **minus 1 µs**, that is `last_day` at `23:59:59.999999` UTC |
+| Representability | `9999-12-31` is a valid `last_day`. Its next midnight is not representable in common date-time types, so an implementation must compute the end bound as `last_day` midnight plus (1 day − 1 µs), not as (next midnight) − 1 µs (vector `W05`). |
+| Membership | Inclusive on both bounds: `start <= t <= end` for a microsecond instant `t` (§12). The next day's midnight is excluded. |
+| Serialization | Both bounds in the §12.5 form, e.g. `2026-09-28T00:00:00.000000Z` / `2026-09-28T23:59:59.999999Z` |
+| Invalid input | Malformed or reversed input is a request-validation refusal. The request is not treated as a narrower or wider window. |
+| Finer request | Any request whose bounds are not whole UTC days, e.g. a date-time range, is `UNSUPPORTED` / `LOCALITY_UNSUPPORTED_TEMPORAL_RESOLUTION` at phase 1 (L25). Existing v0.5 date-time windows are untouched. |
+
+The golden vectors for this section are in [`i1-vectors/utc-day-window.json`](i1-vectors/utc-day-window.json). `tests/unit/test_v060_i1_contract_vectors.py` recomputes them using only the Python standard library, with no `app/` import. The vectors were authored from the rules above.
+
+## 14. Guard split: ingestion versus query (I1 §6.2)
+
+| Guard | Phase | Inputs it may inspect | Failure result |
+|---|---|---|---|
+| I-1 Exact canonical subject Service and Operation IDs of the accepted v1 CALLS | Ingestion | The accepted v0.5 CALLS | No v1 CALLS means no v2 at all. v0.5 refusals are unchanged and never become locality evidence. |
+| I-2 Non-empty `client_environment`, `client_pod_uid`, `client_cluster_uid` | Ingestion | CLIENT carrier | `LOCALITY_CLIENT_IDENTITY_MISSING` / `LOCALITY_POD_UID_MISSING` / `LOCALITY_CLUSTER_UID_MISSING` (§15.1) |
+| I-3 `client_environment` exactly equals the accepted fact environment | Ingestion | CLIENT carrier, accepted fact | `LOCALITY_CLIENT_FACT_ENVIRONMENT_MISMATCH` |
+| I-4 Same UTC day for `client_timestamp` and fact timestamp | Ingestion | CLIENT carrier, accepted fact | `LOCALITY_CLIENT_FACT_DAY_MISMATCH` |
+| I-5 CLIENT-internal consistency (§10.3) | Ingestion | CLIENT carrier only | `LOCALITY_CLIENT_INTERNAL_CONFLICT` |
+| Q-1…Q-4 Request preflight, source mode, environment/time, captured Pod/owner identity | Query | Retained v2 record, selected snapshot, request | §15.2 |
+
+Ingestion guards never read a capture, a `RuntimeIdentityObservation`, `DEPLOYED_AS` or another span. Query guards never delete, rewrite or suppress a retained v2 record (I1 §6.2).
+
+## 15. Disposition and reason lookup (I1 §10–10.2)
+
+**Dispositions:** `APPLICABLE`, `INAPPLICABLE`, `INSUFFICIENT_EVIDENCE`, `UNRESOLVED`, `AMBIGUOUS`, `CONFLICT`, `UNSUPPORTED`.
+
+**Reason codes:** the 23 `LOCALITY_*` codes of I1 §10, and no others.
+
+**Reason ordering:** distinct codes, sorted by ascending code-point (ASCII) order.
+
+**Within-phase primary precedence:** `CONFLICT > AMBIGUOUS > INAPPLICABLE > UNRESOLVED > INSUFFICIENT_EVIDENCE > APPLICABLE`. `UNSUPPORTED` is terminal in phases 1–2 and so is never ranked.
+
+### 15.1 Ingestion phase: no v2 written; the result is visible only in diagnostics and the import/migration report (I1 §10.2)
+
+| Cause | Disposition | Reason | Cases |
+|---|---|---|---|
+| `SERVER_ONLY` | `INSUFFICIENT_EVIDENCE` | `LOCALITY_SERVER_ONLY_NO_CLIENT` | L09, L35 |
+| No CLIENT carrier at all (other than `SERVER_ONLY`) | `INSUFFICIENT_EVIDENCE` | `LOCALITY_CLIENT_IDENTITY_MISSING` | L35 |
+| Carrier present, `client_pod_uid` and/or `client_cluster_uid` missing | `INSUFFICIENT_EVIDENCE` | `LOCALITY_POD_UID_MISSING` and/or `LOCALITY_CLUSTER_UID_MISSING`. **Not** also `LOCALITY_CLIENT_IDENTITY_MISSING` on their account. | L06, L35 |
+| Carrier present, `client_environment` missing | `INSUFFICIENT_EVIDENCE` | `LOCALITY_CLIENT_IDENTITY_MISSING` | L35 |
+| `client_environment` present and different from the fact environment | `INAPPLICABLE` | `LOCALITY_CLIENT_FACT_ENVIRONMENT_MISMATCH` | L10, L35 |
+| CLIENT and fact timestamps on different UTC days | `INAPPLICABLE` | `LOCALITY_CLIENT_FACT_DAY_MISMATCH` | L11, L35 |
+| §10.3 CLIENT-internal contradiction | `CONFLICT` | `LOCALITY_CLIENT_INTERNAL_CONFLICT` | L34, L35 |
+
+Several ingestion causes in one interaction are one phase. Every cause that can actually be established is retained, and the primary disposition follows the within-phase precedence. For example, a missing Pod UID plus a CLIENT-internal contradiction gives `CONFLICT` with reasons `[LOCALITY_CLIENT_INTERNAL_CONFLICT, LOCALITY_POD_UID_MISSING]`. A guard whose input is missing establishes nothing further: a missing `client_environment` cannot also yield an environment mismatch.
+
+**Interpretation, flagged for review:** when the carrier exists and **both** `client_environment` and a UID are missing, the reasons are `LOCALITY_CLIENT_IDENTITY_MISSING` (for the environment, per the I1 §10.1 row) **and** the specific UID code. The I1 §10.1 no-double-emit rule forbids emitting the generic code *because of* a missing UID. It does not suppress the separately specified environment cause.
+
+### 15.2 Query phases: one retained v2 candidate (I1 §10.1)
+
+Phases are evaluated strictly in order, and the first terminating phase decides the primary disposition. Later phases are **not evaluated**, and no reasons are invented for them.
+
+| Phase | Cause | Disposition | Reason | Cases |
+|---|---|---|---|---|
+| 1 Request preflight | Unadmitted dimension (region, tenant, version) | `UNSUPPORTED` (terminates the request) | `LOCALITY_UNSUPPORTED_DIMENSION` | L24 |
+| 1 | Unadmitted relation (e.g. messaging) | `UNSUPPORTED` | `LOCALITY_UNSUPPORTED_RELATION` | L24 |
+| 1 | Sub-day or non-whole-day window (§13) | `UNSUPPORTED` | `LOCALITY_UNSUPPORTED_TEMPORAL_RESOLUTION` | L25 |
+| 2 Source/evidence mode | Candidate's selected Kubernetes contribution is `DECLARED_MANIFEST` | `UNSUPPORTED` (terminal **per candidate**) | `LOCALITY_CAPTURE_MODE_UNSUPPORTED` | L17, L37 |
+| 3 Environment and time | Persisted v2 environment differs from the exact query environment | `INAPPLICABLE` | Exact environment-mismatch limitation. I1 §10.1 names no `LOCALITY_*` code for it, and none is minted here. | — (dossier sub-case, I1.5) |
+| 3 | v2 bucket `last_seen` outside the §13 window | `INAPPLICABLE` | `LOCALITY_OBSERVATION_TEMPORAL_MISMATCH` | L17, L31 |
+| 3 | Selected `capturedAt` outside the §13 window | `INAPPLICABLE` | `LOCALITY_CAPTURE_TEMPORAL_MISMATCH` | L31, L36 |
+| 3 | Selected `capturedAt` missing or unparsable (§12.4) | `INSUFFICIENT_EVIDENCE` | `LOCALITY_CAPTURE_TIMESTAMP_MISSING` | L17 |
+| 4 Captured Pod/owner identity | No captured Pod with the v2 cluster and Pod UID | `UNRESOLVED` | `LOCALITY_CAPTURE_MISSING_POD` | L18, L27 |
+| 4 | Pod captured, owner chain incomplete or unsupported | `UNRESOLVED` | `LOCALITY_POD_OWNER_UNRESOLVED` | L18 |
+| 4 | CLIENT cluster UID ≠ selected envelope `clusterUid` | `CONFLICT` | `LOCALITY_CLUSTER_UID_CONFLICT` | L16, L34 |
+| 4 | Present `client_namespace` ≠ captured Pod namespace | `CONFLICT` | `LOCALITY_NAMESPACE_CONFLICT` | L34 |
+| 4 | Other present optional consistency value (Pod name, Workload kind or name) contradicts the capture | `CONFLICT` | `LOCALITY_POD_OWNER_CONFLICT` (the applicable bounded Path C contradiction) | L34 |
+| 4 | Several admissible Workload candidates, no contradiction | `AMBIGUOUS` | `LOCALITY_POD_OWNER_AMBIGUOUS` | L19, L35 |
+| 4 | Contradictory owner paths or identity assertions | `CONFLICT` | `LOCALITY_POD_OWNER_CONFLICT` | L19, L35 |
+| 4 | Unique supported Workload, all guards pass | `APPLICABLE` | — | L15 |
+
+Phase 3 short-circuit example: a day-D v2 `last_seen`, a selected capture from day D+1 and a request for day D give `INAPPLICABLE` / `LOCALITY_CAPTURE_TEMPORAL_MISMATCH`, even if that capture's owner chain would conflict. The owner chain is not evaluated (L36).
+
+**Cluster-UID conflict versus missing Pod (I1 §9, §10.1, L16).** `LOCALITY_CLUSTER_UID_CONFLICT` applies when the selected snapshot contains a captured Pod with the v2 Pod UID under a `clusterUid` different from the v2 `caller_cluster_uid`. That is a known contradiction between compatible identity inputs. When no selected capture contains that Pod UID at all, the result is `LOCALITY_CAPTURE_MISSING_POD`: nothing contradicts, the Pod is simply absent from the selected capture.
+
+**Interpretation, flagged for review:** I1 §10.1 names no dedicated code for a contradicted optional Pod-name or Workload-kind/name attribute ("applicable bounded Path C contradiction"). This contract maps both to `LOCALITY_POD_OWNER_CONFLICT`, the only existing identity-conflict code for the captured Pod/owner chain. No new code is minted.
+
+### 15.3 Answer-level results without a retained v2 candidate (I1 §10.2)
+
+| Situation | Disposition | Reasons | Cases |
+|---|---|---|---|
+| No eligible local CALLS, only unscoped v1 or nothing | `INSUFFICIENT_EVIDENCE` | `LOCALITY_NO_ELIGIBLE_LOCAL_OBSERVATION`, plus `LOCALITY_LOCAL_COVERAGE_UNAVAILABLE` where relevant, plus `LOCALITY_LEGACY_V1_UNSCOPED` **only** where legacy-only source/inventory status is independently known | L05, L23, L35 |
+| Any request for local absence | Never local `NOT_OBSERVED_IN_WINDOW` | `LOCALITY_LOCAL_COVERAGE_UNAVAILABLE` | L23 |
+
+A §15.1 ingestion code is never emitted in a query answer.
+
+## 16. Traceability of slice I1.2
+
+| I1 requirement (§14 slice I1.2: "exact normalization, allowlist and negative tests frozen") | Section |
+|---|---|
+| §4.2 minimum positive dimensions; §6.2 ingestion guards (2), (3), (5) | §10, §14 |
+| §6.1 carrier in both arrival orders; bounded; `CLIENT_ONLY`/`SERVER_ONLY` | §11 |
+| §8 timestamp precision, UTC parser, day-range validation, serialization, midnight boundary | §12, §13, vectors |
+| §6.2 guard split; query-time conflicts never suppress v2 | §14, §15.2 |
+| §10 taxonomy; §10.1 phase gates, terminal per-candidate `UNSUPPORTED`, within-phase precedence and sorted reasons (L35–L37) | §15 |
+| §10.2 ingestion-only visibility; generic read-side abstention | §15.1, §15.3 |
