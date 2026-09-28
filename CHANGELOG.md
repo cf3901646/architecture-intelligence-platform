@@ -49,12 +49,16 @@ aren't yet guaranteed stable pre-1.0.
 ### Fixed
 
 - The natural-language query layer's row limit (`/api/query` and the UI query page) could be
-  bypassed: `LIMIT` text inside a string or comment counted as a limit, only the first `LIMIT` was
-  clamped, `LIMIT <expression>` read only its leading digits, and a query ending in a `//` comment
-  swallowed the appended `LIMIT`. The validator now checks `LIMIT` in code only, clamps every
-  literal, rejects a non-literal `LIMIT`, and the query service also reads at most the cap's number
-  of rows. Queries that relied on these forms are now clamped or rejected; no bypass allowed
-  writes.
+  bypassed: `LIMIT` text inside a string, comment or backtick-quoted name counted as a limit, only
+  the first `LIMIT` was clamped, `LIMIT <expression>` read only its leading digits, and a query
+  ending in a `//` comment swallowed the appended `LIMIT`. The validator now checks `LIMIT` in code
+  only, clamps every literal, rejects a non-literal `LIMIT`, and the query service also reads at
+  most the cap's number of rows. Queries that relied on these forms are now clamped or rejected.
+- The same validator's write-keyword check could be bypassed by text it read as non-code but Neo4j
+  doesn't: an apostrophe inside a backtick-quoted name opened a "string", and a `//` comment ran on
+  past a carriage return, which ends it in Neo4j. Both could hide a clause such as `CREATE`; the
+  read-only session still rejected the write. Backtick names are now lexed, and line comments end
+  at `\r` as well as `\n`.
 - The runtime demo's Neo4j healthcheck (`docker-compose.demo.yml`) now has a 60s start period, so a
   slow cold start doesn't fail `mcp-demo.sh` with "container is unhealthy".
 

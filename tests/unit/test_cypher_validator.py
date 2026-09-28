@@ -57,6 +57,37 @@ def test_limit_inside_a_subquery_does_not_bound_the_result():
 
 
 @pytest.mark.parametrize(
+    "alias",
+    ["`LIMIT 5 note`", "`LIMIT 999 note`", "`x`` LIMIT 5 y`"],
+    ids=["limit-in-alias", "over-cap-limit-in-alias", "escaped-backtick"],
+)
+def test_limit_inside_a_backtick_name_does_not_count(alias):
+    # PR #304 review: a backtick-quoted name is a name, not a clause.
+    query = f"MATCH (s:Service) RETURN s.id AS {alias}"
+    assert validate_cypher(query, max_result_rows=20) == f"{query} LIMIT 20"
+
+
+def test_an_apostrophe_inside_a_backtick_name_does_not_open_a_string():
+    # Before backtick names were lexed, the apostrophe opened a "string" that hid CREATE.
+    query = "MATCH (s:Service) WITH s AS `x'` CREATE (b:Service) WITH b, 'z' AS z RETURN b"
+    with pytest.raises(CypherValidationError, match="CREATE"):
+        validate_cypher(query)
+
+
+def test_a_carriage_return_ends_a_line_comment_as_in_neo4j():
+    # Neo4j 5.26 ends a `//` comment at `\r`; the validator used to read on to `\n`, so this CREATE
+    # was hidden from it and reached Neo4j (stopped there only by the read-only session).
+    query = "MATCH (s:Service) // c\rCREATE (z:Service)\nRETURN s.id AS x"
+    with pytest.raises(CypherValidationError, match="CREATE"):
+        validate_cypher(query)
+
+
+def test_a_backtick_inside_a_string_is_part_of_the_string():
+    query = "MATCH (s:Service) RETURN 'a `quoted` word' AS w"
+    assert validate_cypher(query) == f"{query} LIMIT 100"
+
+
+@pytest.mark.parametrize(
     "limit",
     ["10 + 100000", "$n", "toInteger('1000')", "10e5", "0x10", "(1000)"],
 )

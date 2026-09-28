@@ -30,7 +30,8 @@ def _random_case(draw, word: str) -> str:
     return "".join(char.upper() if draw(st.booleans()) else char.lower() for char in word)
 
 
-# Text that looks like code but sits inside a string literal or comment, where it must be inert.
+# Text that looks like code but sits inside a string literal, comment or backtick-quoted name,
+# where it must be inert.
 tricky_text = st.lists(
     st.sampled_from(
         [
@@ -46,6 +47,8 @@ tricky_text = st.lists(
             "\\'",
             '\\"',
             ";",
+            "'",
+            "`",
             *sorted(FORBIDDEN_KEYWORDS),
         ]
     ),
@@ -63,17 +66,25 @@ def string_literals(draw) -> str:
 
 
 @st.composite
+def backtick_names(draw) -> str:
+    """A backtick-quoted name; a backtick inside it is escaped by doubling (PR #304 review)."""
+    body = draw(tricky_text).replace("\n", " ").replace("`", "``")
+    return f"`{body or 'n'}`"
+
+
+@st.composite
 def comments(draw) -> str:
     body = draw(tricky_text)
     if draw(st.booleans()):
-        return "// " + body.replace("\n", " ")
+        return "// " + body.replace("\n", " ").replace("\r", " ")
     return "/* " + body.replace("*/", "") + " */"
 
 
 @st.composite
 def read_queries(draw, *, extra_clause=None) -> str:
-    """A read-only query the validator should accept: MATCH, optional WITH ... LIMIT, a RETURN
-    with an adversarial string literal, optional ORDER BY/SKIP/LIMIT and a trailing comment."""
+    """A read-only query the validator should accept: MATCH, optional WITH ... LIMIT, an optional
+    WITH that introduces a backtick-quoted name, a RETURN with an adversarial string literal and
+    backtick alias, optional ORDER BY/SKIP/LIMIT and a trailing comment."""
 
     def kw(word: str) -> str:
         return _random_case(draw, word)
@@ -83,9 +94,14 @@ def read_queries(draw, *, extra_clause=None) -> str:
     parts = [f"{kw('MATCH')} (a:{a})-[:{rel}]->(b:{b})"]
     if draw(st.booleans()):
         parts.append(f"{kw('WITH')} a, b {kw('LIMIT')} {draw(limits)}")
+    if draw(st.booleans()):
+        # A name that opens with an apostrophe must not hide the clauses after it.
+        parts.append(f"{kw('WITH')} a, b, 0 AS {draw(backtick_names())}")
     if extra_clause is not None:
         parts.append(extra_clause)
-    parts.append(f"{kw('RETURN')} a.id AS id, {draw(string_literals())} AS note")
+    parts.append(
+        f"{kw('RETURN')} a.id AS id, {draw(string_literals())} AS {draw(backtick_names())}"
+    )
     if draw(st.booleans()):
         parts.append(f"{kw('ORDER')} {kw('BY')} id")
     if draw(st.booleans()):
@@ -114,7 +130,9 @@ def test_no_limit_literal_in_the_output_exceeds_the_cap(query):
     """Every LIMIT clause the generator wrote is clamped, and the last line of the output (where the
     final RETURN's LIMIT or an appended one sits) carries a LIMIT within the cap."""
     result = validate_cypher(query, max_depth=MAX_DEPTH, max_result_rows=MAX_ROWS)
-    code = re.sub(r"'[^']*'|\"[^\"]*\"|//[^\n]*|/\*.*?\*/", " ", result, flags=re.DOTALL)
+    code = re.sub(
+        r"'[^']*'|\"[^\"]*\"|`(?:``|[^`])*`|//[^\n]*|/\*.*?\*/", " ", result, flags=re.DOTALL
+    )
     values = [int(v) for v in re.findall(r"\bLIMIT\s+(\d+)", code, flags=re.IGNORECASE)]
     assert values and all(value <= MAX_ROWS for value in values)
 
@@ -134,6 +152,19 @@ def test_a_forbidden_keyword_in_code_is_always_rejected(case):
         assert "forbidden" in str(error)
     else:
         raise AssertionError(f"accepted a query with a forbidden clause: {query!r}")
+
+
+@given(forbidden, tricky_text, st.sampled_from(["\n", "\r", "\r\n"]))
+def test_a_line_comment_never_hides_the_next_line(keyword, body, line_end):
+    """Neo4j ends a `//` comment at `\n` or `\r`, so a clause after either is code."""
+    comment = "// " + body.replace("\n", " ").replace("\r", " ")
+    query = f"MATCH (s:Service) {comment}{line_end}{keyword} s\nRETURN s.id AS id"
+    try:
+        validate_cypher(query, max_depth=MAX_DEPTH, max_result_rows=MAX_ROWS)
+    except CypherValidationError as error:
+        assert "forbidden" in str(error)
+    else:
+        raise AssertionError(f"a comment hid {keyword!r}: {query!r}")
 
 
 @given(forbidden, st.booleans())

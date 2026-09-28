@@ -39,8 +39,14 @@ FORBIDDEN_KEYWORDS = {
     "DBMS",
 }
 
+# String literals, comments and backtick-quoted names, lexed together leftmost-first: none of them
+# is code, and each can contain the others' delimiters (an apostrophe inside `it's`, a backtick
+# inside a string). A doubled backtick escapes a backtick inside a quoted name. Neo4j ends a `//`
+# comment at a carriage return as well as a newline (checked on Neo4j 5.26), so this must too, or
+# a clause after `\r` would be hidden from these checks but still run.
 _STRING_OR_COMMENT_RE = re.compile(
-    r"'(?:\\.|[^'\\])*'|\"(?:\\.|[^\"\\])*\"|//[^\n]*|/\*.*?\*/", re.DOTALL
+    r"'(?:\\.|[^'\\])*'|\"(?:\\.|[^\"\\])*\"|`(?:``|[^`])*`|//[^\r\n]*|/\*.*?\*/",
+    re.DOTALL,
 )
 _TOKEN_RE = re.compile(r"[A-Za-z_][A-Za-z0-9_]*")
 _NODE_LABEL_RE = re.compile(r"\(\s*\w*\s*:\s*([A-Za-z_][A-Za-z0-9_:]*)")
@@ -60,8 +66,8 @@ class CypherValidationError(ValueError):
 
 
 def _strip_strings_and_comments(cypher: str) -> str:
-    """Blanks out string literals and comments with same-length whitespace, so every position in
-    the stripped code still maps to the same position in the original query."""
+    """Blanks out string literals, comments and backtick-quoted names with same-length whitespace,
+    so every position in the stripped code still maps to the same position in the original query."""
     return _STRING_OR_COMMENT_RE.sub(lambda match: " " * len(match.group(0)), cypher)
 
 
