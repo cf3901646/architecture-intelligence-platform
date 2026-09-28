@@ -28,6 +28,13 @@ including this file.** If anything below conflicts with a specification, the spe
   touching — not just the increment spec in isolation.
 - Identify the exact governing specification revision (e.g. "Draft 0.3, amended during PR3b") before
   writing a plan against it.
+- Fetch and merge `origin/main` before starting implementation, not only before pushing: governing
+  specifications are revised on `main` while an increment is in progress. Re-check the revision you
+  planned against before opening the PR. (In v0.5 I1 a formula was implemented after the spec had
+  already changed it.)
+- Write a commit or merge SHA into a record, PR body or comment only from git output captured in
+  the same step (`git rev-parse`, `gh pr view --json mergeCommit`), never from memory or
+  expectation. Qualification evidence depends on exact SHAs.
 - Inspect the current repository — existing code, tests, prior completion records — before
   proposing implementation details. Reuse existing functions/utilities/patterns; don't propose new
   ones where suitable ones already exist.
