@@ -383,7 +383,7 @@ def _validate_resource(
     valid.
     """
     document = entry.document
-    kind = document.get("kind")
+    kind = document["kind"]  # the caller only validates admitted resources, which have a kind
     metadata = document.get("metadata")
     if not isinstance(metadata, dict):
         return _validation_error(

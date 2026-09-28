@@ -63,6 +63,25 @@ def build_observation_context_ref(
     )
 
 
+def build_complete_observation_context_ref(
+    context: ObservationContextInput | None,
+) -> ObservationContextRef | None:
+    """`build_observation_context_ref` for a supplied, complete context; `None` for a missing or
+    incomplete one. The completeness test is `ObservationContextInput.is_complete`, spelled out
+    field by field so the type checker narrows each field. Raises `pydantic.ValidationError` for a
+    complete but malformed context, exactly like `build_observation_context_ref`."""
+    if (
+        context is None
+        or context.environment is None
+        or context.window_start is None
+        or context.window_end is None
+    ):
+        return None
+    return build_observation_context_ref(
+        context.environment, context.window_start, context.window_end
+    )
+
+
 def reject_malformed_observation_context(context: ObservationContextInput | None) -> None:
     """v0.5.0 I3 slice 5a - shared by every public adapter (MCP, REST) that must pre-validate a
     caller-supplied `observation_context` *before* dispatch, so a malformed value (bad offset,
@@ -77,5 +96,4 @@ def reject_malformed_observation_context(context: ObservationContextInput | None
     `ArchitectureIntelligenceService` refusal (`OBSERVATION_CONTEXT_REQUIRED`), never an adapter
     input error.
     """
-    if context is not None and context.is_complete:
-        build_observation_context_ref(context.environment, context.window_start, context.window_end)
+    build_complete_observation_context_ref(context)

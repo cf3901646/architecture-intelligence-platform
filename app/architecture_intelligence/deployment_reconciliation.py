@@ -189,6 +189,12 @@ def reduce_cross_path_resolutions(
     return PathResolutionResult(resolutions=resolutions, claims=claims)
 
 
+def _resolved_service_id(resolution: DeploymentResolution) -> str:
+    # DeploymentResolution's own model validator rejects a RESOLVED_* status without a service_id.
+    assert resolution.service_id is not None
+    return resolution.service_id
+
+
 def _reduce_group(
     members: list[DeploymentResolution], claims_by_claim_id: dict[str, DeploymentClaim]
 ) -> tuple[DeploymentResolution, DeploymentClaim | None]:
@@ -200,7 +206,7 @@ def _reduce_group(
     # resolve_path_c's own established precedent (PR #220 review) that an UNRESOLVED outcome must
     # never silently support or taint a group it wasn't actually part of.
     applicable = successful + conflicting + ambiguous
-    distinct_successful_ids = sorted({m.service_id for m in successful})
+    distinct_successful_ids = sorted({_resolved_service_id(m) for m in successful})
 
     # §10.2: a direct contradiction always wins - two-or-more distinct successful resolutions, or
     # any contributing path already reporting CONFLICT.
@@ -542,6 +548,8 @@ def _path_c_evidence_records(
 # modules; `build_observation_context_ref` re-enforces this bound anyway, so a drift here would fail
 # loudly (a raised `pydantic.ValidationError`), not silently.
 _PATH_C_MAX_WINDOW = timedelta(days=31)
+# A row's or bucket's (earliest, latest) timestamp bounds.
+_Span = tuple[datetime, datetime]
 _PATH_C_PLACEHOLDER_ENVIRONMENT = "unspecified"
 # Only ever used for a row with no usable first_seen/last_seen at all, where the temporal check
 # fails regardless of window choice (see `_bucket_context_free_observations`'s own comment) - any
@@ -582,7 +590,7 @@ def _resolve_workload_group_key(
     return owners[0].workload_id, captured_at
 
 
-def _row_span(row: RuntimeIdentityObservationRow, captured_at: datetime | None) -> tuple | None:
+def _row_span(row: RuntimeIdentityObservationRow, captured_at: datetime | None) -> _Span | None:
     """Every timestamp `_observation_context_limitation` checks this row against - its own
     `first_seen`/`last_seen` *and* its matched Pod's `captured_at` - so a bucket window built to
     cover this span guarantees the row passes §9.7's temporal check regardless of which bucket it
@@ -593,7 +601,7 @@ def _row_span(row: RuntimeIdentityObservationRow, captured_at: datetime | None) 
 
 def _bucket_by_window(
     rows: list[tuple[RuntimeIdentityObservationRow, datetime | None]],
-) -> list[tuple[list[tuple[RuntimeIdentityObservationRow, datetime | None]], tuple | None]]:
+) -> list[tuple[list[tuple[RuntimeIdentityObservationRow, datetime | None]], _Span | None]]:
     """Greedily packs same-(workload, environment) rows, sorted by their own span start, into
     consecutive buckets whose own combined, *clamped* span never exceeds `ObservationContextRef`'s
     31-day maximum window - so every bucket's returned bounds can become one valid, real
@@ -614,12 +622,18 @@ def _bucket_by_window(
     recent 31 days: no real caller-supplied context could ever cover a >31-day span either, so this
     row would fail `DEPLOYMENT_TEMPORAL_MISMATCH` against a real request the same way - clamping
     just lets `resolve_path_c` reach that same, correct conclusion instead of crashing first."""
-    spans = [(row, captured_at, _row_span(row, captured_at)) for row, captured_at in rows]
-    timestamped = sorted((s for s in spans if s[2] is not None), key=lambda s: s[2][0])
-    untimestamped = [s for s in spans if s[2] is None]
+    timestamped: list[tuple[RuntimeIdentityObservationRow, datetime | None, _Span]] = []
+    untimestamped: list[tuple[RuntimeIdentityObservationRow, datetime | None]] = []
+    for row, captured_at in rows:
+        span = _row_span(row, captured_at)
+        if span is None:
+            untimestamped.append((row, captured_at))
+        else:
+            timestamped.append((row, captured_at, span))
+    timestamped.sort(key=lambda s: s[2][0])
 
     buckets: list[list[tuple[RuntimeIdentityObservationRow, datetime | None]]] = []
-    bounds: list[tuple] = []
+    bounds: list[_Span] = []
     for row, captured_at, (span_min, span_max) in timestamped:
         if buckets:
             min_first, max_last = bounds[-1]
@@ -635,8 +649,9 @@ def _bucket_by_window(
         else:
             bounds.append((span_min, span_max))
 
+    result: list[tuple[list[tuple[RuntimeIdentityObservationRow, datetime | None]], _Span | None]]
     result = list(zip(buckets, bounds, strict=True))
-    result.extend(([(row, captured_at)], None) for row, captured_at, _ in untimestamped)
+    result.extend(([(row, captured_at)], None) for row, captured_at in untimestamped)
     return result
 
 

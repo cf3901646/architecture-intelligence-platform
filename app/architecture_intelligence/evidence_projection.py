@@ -43,8 +43,10 @@ def sanitize_source_locator(source_file: str | None) -> str | None:
 
 
 def _build_supported_facts(relations: list[dict], *, evidence_id: str) -> list[SupportedFact]:
+    # SupportedFact is frozen via ConfigDict(frozen=True), so Pydantic makes it hashable at
+    # runtime; pyright only recognizes the class-keyword form of `frozen`.
     facts = {
-        SupportedFact(
+        SupportedFact(  # pyright: ignore[reportUnhashable]
             relation_type=EvidenceRelationType(relation["type"]),
             source_id=relation["source_id"],
             target_id=relation["target_id"],

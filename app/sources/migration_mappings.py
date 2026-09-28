@@ -374,6 +374,17 @@ def _check_subscription_binding_invariant(entry: IdentityMappingEntry, *, kind: 
         )
 
 
+def _subscription_mapping(entry: IdentityMappingEntry) -> SubscriptionMapping:
+    # `_check_subscription_binding_invariant` already rejected every subscription entry lacking
+    # either binding field, so both are set here.
+    assert entry.bound_topic_id is not None and entry.subscription_name is not None
+    return SubscriptionMapping(
+        topic_id=entry.bound_topic_id,
+        subscription_name=entry.subscription_name,
+        subscription_id=entry.target_id,
+    )
+
+
 def _describe_payload(entry: IdentityMappingEntry) -> str:
     if entry.bound_topic_id is None:
         return repr(entry.target_id)
@@ -461,12 +472,7 @@ def build_shared_identity_index(
             queue_index=queue_index,
             topic_index=topic_index,
             subscription_index={
-                key: SubscriptionMapping(
-                    topic_id=entry.bound_topic_id,
-                    subscription_name=entry.subscription_name,
-                    subscription_id=entry.target_id,
-                )
-                for key, entry in subscription_entries.items()
+                key: _subscription_mapping(entry) for key, entry in subscription_entries.items()
             },
             documents=tuple(documents),
         ),

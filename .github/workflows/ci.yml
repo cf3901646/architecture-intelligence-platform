@@ -32,6 +32,10 @@ jobs:
       - name: ruff format --check
         run: uv run ruff format --check .
 
+      # Static type checking; `[tool.pyright]` in pyproject.toml sets the covered packages and mode.
+      - name: pyright
+        run: uv run pyright
+
       # v0.4.2 I3 spec §8.2/§8.3 "shell lint" gate. shellcheck ships preinstalled on GitHub-hosted
       # ubuntu-latest runners - no extra action/install needed. examples/runtime-demo/ and (v0.5.0
       # I6 §7.4) examples/release-golden-path/ hold the shipped, qualification-relevant shell scripts;

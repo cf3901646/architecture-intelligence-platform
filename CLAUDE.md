@@ -42,8 +42,9 @@ for this PoC") as current — check `ROADMAP.md` instead, which is authoritative
 shipped vs. planned per release.
 
 Build/lint/test commands: `uv sync`, `uv run pytest tests/unit`, `uv run pytest tests/integration`,
-`uv run ruff check .`, `uv run ruff format .` — see [`docs/development.md`](docs/development.md) for
-the full local-dev workflow, including running without Docker and the Collector-based runtime demo.
+`uv run ruff check .`, `uv run ruff format .`, `uv run pyright` — see
+[`docs/development.md`](docs/development.md) for the full local-dev workflow, including running
+without Docker and the Collector-based runtime demo.
 
 ## Reference
 

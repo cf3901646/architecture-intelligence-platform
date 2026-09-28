@@ -938,10 +938,10 @@ def _claim_sort_key(claim: DependencyClaim | DeploymentClaim) -> tuple[str, str,
     # existing (delivery.kind, delivery.via.id) tiebreaker becomes ("", "") for a DeploymentClaim,
     # which has no `delivery` field at all.
     if isinstance(claim, DependencyClaim):
-        secondary = (claim.delivery.kind.value, claim.delivery.via.id)
+        delivery_kind, delivery_via = claim.delivery.kind.value, claim.delivery.via.id
     else:
-        secondary = ("", "")
-    return (claim.object.id, claim.predicate.value, *secondary, claim.claim_id)
+        delivery_kind, delivery_via = "", ""
+    return (claim.object.id, claim.predicate.value, delivery_kind, delivery_via, claim.claim_id)
 
 
 # v0.4.0 I2.1 - the tool name each generic specialization is locked to, keyed by its bound `T`.
@@ -1004,6 +1004,11 @@ def _bound_data_type_name(model: type[BaseModel]) -> str | None:
     return args[0].__name__ if args else None
 
 
+def _bound_tool_name(model: type[BaseModel]) -> str | None:
+    data_type_name = _bound_data_type_name(model)
+    return _TOOL_NAME_BY_DATA_TYPE.get(data_type_name) if data_type_name is not None else None
+
+
 def _architecture_answer_schema_extra(schema: dict, model: type[BaseModel]) -> None:
     """Encode more envelope invariants (spec §8.3/§9/§12/§14) as JSON Schema if/then/contains so
     external (non-Pydantic) validators reject the same invalid shapes. The Python
@@ -1055,7 +1060,7 @@ def _architecture_answer_schema_extra(schema: dict, model: type[BaseModel]) -> N
     # This schema is generated from one concrete ArchitectureAnswer[T] class - lock `tool` to the
     # one value valid for T, closing the gap the shared Literal otherwise leaves open (both values
     # are structurally valid JSON for either T, since `tool` isn't itself generic).
-    tool_name = _TOOL_NAME_BY_DATA_TYPE.get(_bound_data_type_name(model))
+    tool_name = _bound_tool_name(model)
     if tool_name is not None:
         all_of.append({"properties": {"tool": {"const": tool_name}}})
     if tool_name == "get_architecture_drift":
@@ -1111,7 +1116,7 @@ class ArchitectureAnswer[T: BaseModel](BaseModel):
         if self.outcome != Outcome.NOT_ANSWERED and self.data is None:
             raise ValueError("data must not be null for ANSWERED/PARTIAL outcomes")
 
-        expected_tool = _TOOL_NAME_BY_DATA_TYPE.get(_bound_data_type_name(type(self)))
+        expected_tool = _bound_tool_name(type(self))
         if expected_tool is not None and self.tool != expected_tool:
             raise ValueError(f"tool must be {expected_tool!r} for this ArchitectureAnswer[T]")
 

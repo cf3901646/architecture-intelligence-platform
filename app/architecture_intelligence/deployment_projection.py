@@ -1019,6 +1019,8 @@ def resolve_path_c(
         if len(candidate_ids) == 1:
             [service_id] = candidate_ids
             service_name = candidate_names[service_id]
+            # every "candidate" outcome carries its DeclaredServiceIdentity's (non-null) name
+            assert service_name is not None
             claim = _resolved_claim(
                 service_id=service_id,
                 service_name=service_name,

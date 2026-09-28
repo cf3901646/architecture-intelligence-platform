@@ -46,6 +46,11 @@ including this file.** If anything below conflicts with a specification, the spe
   behavior, or unsupported-case behavior that the specification doesn't already state.
 - Preserve AIP's evidence, provenance, identity, qualification, and unsupported-case guarantees in
   every change — these are load-bearing product invariants, not implementation details.
+- Code in the packages `[tool.pyright]` covers (`pyproject.toml`) must pass `uv run pyright`. Never
+  silence it with a bare `# type: ignore`/`# pyright: ignore`, by loosening `[tool.pyright]`, or by
+  shrinking its `include`. A suppression must be rule-scoped (`# pyright: ignore[<rule>]`) with a
+  comment naming the tool or stub limitation it works around. A type error that exposes a reachable
+  `None`/union path is a correctness finding: fix it, don't suppress it.
 
 ## Minimum implementation-plan content
 

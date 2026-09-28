@@ -13,6 +13,7 @@ import hashlib
 from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import datetime
+from typing import LiteralString
 
 import neo4j
 
@@ -186,7 +187,7 @@ def _project_row(record: neo4j.Record) -> dict:
     return row
 
 
-def _project_nodes(session: neo4j.Session, query: str) -> list[dict]:
+def _project_nodes(session: neo4j.Session, query: LiteralString) -> list[dict]:
     """Node arrays sorted by id (spec §18's "(type, id)" - type is constant within one label's
     own list here, so sorting by id alone is equivalent)."""
     return sorted(
@@ -273,7 +274,9 @@ def _semantic_config_state(
     repo's independently-authored evaluation fixtures moves. Only a caller that actually supplies a
     configured artifact changes the fingerprint, exactly as intended.
     """
-    semantic_config = {"coverage_qualification_enabled": coverage_qualification_enabled}
+    semantic_config: dict[str, object] = {
+        "coverage_qualification_enabled": coverage_qualification_enabled
+    }
     if service_workload_mapping_document is not None:
         semantic_config["service_workload_mapping_artifact"] = {
             "artifact_id": service_workload_mapping_document.artifact_id,

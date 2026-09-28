@@ -53,7 +53,7 @@ from app.architecture_intelligence.evidence_projection import (
     EvidenceProjectionResult,
     project_evidence,
 )
-from app.architecture_intelligence.observation_context import build_observation_context_ref
+from app.architecture_intelligence.observation_context import build_complete_observation_context_ref
 from app.architecture_intelligence.repository import (
     SnapshotUnstable,
     canonical_snapshot_state,
@@ -119,8 +119,11 @@ def _apply_deployed_as_evidence(
     records = [
         record.model_copy(
             update={
+                # SupportedFact is frozen via ConfigDict(frozen=True), so Pydantic makes it
+                # hashable at runtime; pyright only recognizes the class-keyword form of `frozen`.
                 "supports": sorted(
-                    {*record.supports, *supports_by_id[record.id]}, key=_supported_fact_sort_key
+                    {*record.supports, *supports_by_id[record.id]},  # pyright: ignore[reportUnhashable]
+                    key=_supported_fact_sort_key,
                 )
             }
         )
@@ -240,18 +243,11 @@ class ArchitectureIntelligenceService:
         because `read_stable_snapshot`'s own algorithm always calls `read_state()` strictly before
         `read_extra()` within one attempt, so no synchronization beyond that existing call order is
         needed, and a discarded (revision-mismatched) attempt discards this cell's value too."""
-        context_input = observation_context
-        context_complete = context_input is not None and context_input.is_complete
         # Malformed values inside a *supplied* context (bad offset, reversed/excessive window,
         # invalid environment) raise pydantic.ValidationError here - an input-schema error, not a
         # semantic refusal (spec §21) - and are expected to propagate out of this call uncaught.
-        context_ref = (
-            build_observation_context_ref(
-                context_input.environment, context_input.window_start, context_input.window_end
-            )
-            if context_complete
-            else None
-        )
+        # `None` exactly when the context is missing or incomplete.
+        context_ref = build_complete_observation_context_ref(observation_context)
 
         with open_session(self._driver, database=self._database, read_only=True) as session:
             fingerprint_holder: dict[str, str] = {}
@@ -274,7 +270,7 @@ class ArchitectureIntelligenceService:
                         window_start=context_ref.window_start,
                         window_end=context_ref.window_end,
                     )
-                    if context_complete
+                    if context_ref is not None
                     else None
                 )
                 deployment = (
@@ -287,7 +283,7 @@ class ArchitectureIntelligenceService:
                         configured_kubernetes_sources=self._configured_kubernetes_sources,
                         service_aliases=self._service_aliases,
                     )
-                    if include_deployment and context_complete
+                    if include_deployment and context_ref is not None
                     else None
                 )
                 return {"dependency_rows": dependency_rows, "deployment": deployment}
@@ -310,7 +306,7 @@ class ArchitectureIntelligenceService:
                 snapshot_id=snapshot.snapshot_id, model_revision=snapshot.model_revision
             )
 
-            if not context_complete:
+            if context_ref is None:
                 return _SharedRefusal(
                     snapshot_ref=snapshot_ref,
                     context_ref=None,
@@ -570,7 +566,7 @@ class ArchitectureIntelligenceService:
             snapshot=shared.snapshot_ref,
             observation_context=shared.context_ref,
             data=data,
-            claims=claims,
+            claims=list(claims),  # list[DependencyClaim] -> list[Claim] (list is invariant)
             evidence_refs=evidence_refs,
             limitations=limitations,
         )

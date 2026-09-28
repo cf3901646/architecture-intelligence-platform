@@ -20,6 +20,7 @@ dependencies = [
 [dependency-groups]
 dev = [
     "httpx>=0.28.1",
+    "pyright[nodejs]>=1.1.414",
     "pytest>=9.1.1",
     "pytest-asyncio>=1.4.0",
     "ruff>=0.16.4",
@@ -35,6 +36,15 @@ extend-exclude = ["*.md"]
 
 [tool.ruff.lint.flake8-bugbear]
 extend-immutable-calls = ["fastapi.Depends", "fastapi.Query", "fastapi.Path", "fastapi.Body"]
+
+[tool.pyright]
+# Enforced in CI (`quality` job). Coverage widens one package at a time: add a package here only
+# once it is clean, never by loosening the mode or suppressing broadly (see AGENTS.md).
+include = ["app/canonical", "app/architecture_intelligence", "app/sources"]
+typeCheckingMode = "standard"
+pythonVersion = "3.13"
+venvPath = "."
+venv = ".venv"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
