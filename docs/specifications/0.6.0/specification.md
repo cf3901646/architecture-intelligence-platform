@@ -6,7 +6,7 @@
 **Entry baseline:** Published and post-release-verified `v0.5.1` (`5719738091baa701d9867726fc89c93fa80bea46`); v0.5.0 provides the underlying discovery and qualification semantics  
 **Primary outcome:** AIP can establish which supported architectural relationships hold in explicitly evidenced localities and observation contexts, and deterministically project and compare these local assessments without turning local knowledge into a universal architecture claim.  
 **Governing inputs:** [Product Doctrine and Strategic Direction](../../product-doctrine-and-strategic-direction.md), [ROADMAP.md](../../../ROADMAP.md), [v0.5.0 parent specification](../0.5.0/specification.md), [v0.5.1 specification](../0.5.1/specification.md).  
-**Source revisions consulted for this draft:** ROADMAP `5082ec45`; Product Doctrine `9c03d53e`; v0.5.0 specification `b4c0163e`; v0.5.1 specification `815fcf0a`. Draft 0.2 also inspected the current v0.5 observed-evidence/runtime-identity implementation and proposed [ADR 0012](../../adr/0012-observed-evidence-retention.md). These are source-input identities, not an implementation baseline or release candidate.
+**Source revisions consulted for this draft:** ROADMAP `5082ec45`; Product Doctrine `9c03d53e`; v0.5.0 specification `b4c0163e`; v0.5.1 specification `815fcf0a`. Drafts 0.2–0.3 also inspected the current v0.5 observed-evidence/runtime-identity, snapshot fingerprint and Path C capture-matching implementations, the frozen golden-path expected file, and proposed [ADR 0012](../../adr/0012-observed-evidence-retention.md). These are source-input identities, not an implementation baseline or release candidate.
 
 ---
 
@@ -460,7 +460,7 @@ The walkthrough SHALL show the actual request and answer for:
 
 1. one positively localized direct relationship with its evidence;
 2. the same Service in a second evidenced locality with a different supported dependency;
-3. one missing-locality or not-observed case that does **not** imply absence;
+3. one missing/unresolved-locality or no-eligible-local-call case with **unknown/insufficient local coverage**, never a local `NOT_OBSERVED_IN_WINDOW` claim or proof of absence;
 4. a Service `DEPLOYED_AS` mapping which does **not** prove that every runtime `CALLS` originated at that Workload;
 5. enumeration of evidenced candidate localities without caller-supplied IDs, optional included/excluded selection, explicit inventory/enumeration coverage and same-snapshot evidence drill-down.
 
@@ -492,7 +492,7 @@ Completion records SHALL cite exact pinned upstream dossiers and independently c
 
 ## 26. Candidate Freeze and Identity
 
-I6 freezes an exact `CANDIDATE_SHA`, package/producer version, committed schema/mapping/rule versions, test and evaluation results, source/fixture pins, expected snapshots and demo outputs. Every qualification assertion SHALL name the exact candidate or immutable artifact it tested. After a change, requalify affected and required end-to-end gates before presenting the candidate as ready. An earlier source checkout, successful PR head, locally rebuilt image, or older tagged RC is not substitutable for the final candidate.
+I6 freezes an exact `CANDIDATE_SHA`, package/producer version, committed schema/mapping/rule versions, test and evaluation results, pinned upstream sources and actual controlled capture (plus any separately identified synthetic fixtures), expected snapshots and demo outputs. Every qualification assertion SHALL name the exact candidate or immutable artifact it tested. After a change, requalify affected and required end-to-end gates before presenting the candidate as ready. An earlier source checkout, successful PR head, locally rebuilt image, or older tagged RC is not substitutable for the final candidate.
 
 ## 27. Pre-Publication Qualification and Decision
 
@@ -525,7 +525,7 @@ The exact files/commands and whether an RC tag is warranted are I6 decisions; v0
 
 ## 30. Required Documentation and Evidence
 
-Publish an I1 support matrix (dimension × source/mapping × claim kind), expressly identifying the narrowed v0.6 slice versus wider ROADMAP candidates; distinction between source, caller and target locality; query-snapshot capture selection and Pod-churn limitations; v1/v2 observed-evidence migration/replay and UTC-day resolution; no-v2 snapshot-ID compatibility with frozen golden-path pins and conditional v2 fingerprinting; evidence-cardinality/ADR 0012 disposition; explicit absence of Workload-level coverage/local `NOT_OBSERVED_IN_WINDOW` in this slice; assessment/projection semantics; evidenced-locality enumeration, reasoned limitations and completeness; REST/MCP request/response examples and schemas; non-observation and temporal compatibility examples; controlled real-capture setup and replay; deterministic evaluation; real-system findings; version/migration guidance; candidate and publication records. **Before I6 candidate freeze**, reconcile the v0.6 entry in `ROADMAP.md` with the accepted release scope and record region, tenant, service-version and messaging locality as explicitly deferred/unassigned candidates or attach a separately authorized later milestone; do not silently assign these to v0.7/v0.8, whose Intent/Assessment scope remains distinct. Explain the difference between *supported in selected localities* and *universally true*, and between operator-authored fixtures and independently observed production behavior.
+Publish an I1 support matrix (dimension × source/mapping × claim kind), expressly identifying the narrowed v0.6 slice versus wider ROADMAP candidates; distinction between source, caller and target locality; query-snapshot capture selection and Pod-churn limitations; v1/v2 observed-evidence migration/replay and UTC-day resolution; no-v2 snapshot-ID compatibility with frozen golden-path pins and conditional v2 fingerprinting; evidence-cardinality/ADR 0012 disposition; explicit absence of Workload-level coverage/local `NOT_OBSERVED_IN_WINDOW` in this slice; assessment/projection semantics; evidenced-locality enumeration, reasoned limitations and completeness; REST/MCP request/response examples and schemas; non-observation and temporal compatibility examples; controlled real-capture setup and replay; deterministic evaluation; real-system findings; version/migration guidance; candidate and publication records. **Before I6 candidate freeze**, reconcile the v0.6 entry in `ROADMAP.md` with the accepted release scope and record region, tenant, service-version and messaging locality as explicitly deferred/unassigned candidates or attach a separately authorized later milestone; do not silently assign these to v0.7/v0.8, whose Intent/Assessment scope remains distinct. Explain the difference between *supported in selected localities* and *universally true*, and distinguish independently captured controlled reference behaviour, separately authored expected results, synthetic test fixtures and independently observed production behaviour; none are interchangeable.
 
 ## 31. Release-Level Definition of Done
 
