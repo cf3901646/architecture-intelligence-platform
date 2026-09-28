@@ -30,3 +30,8 @@ updates:
     directory: "/"
     schedule:
       interval: "weekly"
+    ignore:
+      # A Neo4j major (5.x to the calendar-versioned 2025.x+ line) is a deliberate upgrade, not a
+      # routine bump.
+      - dependency-name: "neo4j"
+        update-types: ["version-update:semver-major"]
