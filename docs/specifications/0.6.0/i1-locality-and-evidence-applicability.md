@@ -287,7 +287,8 @@ The following is the **proposed internal I1 taxonomy**; I3 subsequently maps it 
 | `APPLICABLE` | Directly attributable evidence and selected context justify the scoped statement | CLIENT UID + matching, time-compatible captured Pod owner chain. |
 | `INAPPLICABLE` | A known evidence source or timestamp does not apply to the requested exact selection | Wrong environment or outside selected source/window. |
 | `INSUFFICIENT_EVIDENCE` | Required proof is missing, with no established contradictory value | No CLIENT Pod UID; legacy v1 only; no Workload-level coverage. |
-| `UNRESOLVED` | Identity/capture path cannot uniquely resolve the requested locality | Old Pod missing from selected capture; incomplete owner chain. |
+| `UNRESOLVED` | Required selected-snapshot identity/capture path is absent or incomplete and cannot establish a requested locality | Old Pod missing from selected capture; incomplete owner chain. |
+| `AMBIGUOUS` | More than one admissible Path C candidate remains and the evidence cannot choose uniquely, without a known contradiction | One Pod resolves to multiple otherwise admissible Workloads under existing Path C status rules. |
 | `CONFLICT` | Known compatible identity inputs disagree | CLIENT cluster UID and captured envelope cluster UID differ. |
 | `UNSUPPORTED` | Dimension, relation, source interpretation or temporal precision is not admitted | Region/tenant, local messaging or sub-day window. |
 
@@ -295,6 +296,8 @@ Proposed structured diagnostic codes to review and freeze:
 
 ```text
 LOCALITY_CLIENT_IDENTITY_MISSING
+LOCALITY_SERVER_ONLY_NO_CLIENT
+LOCALITY_CLIENT_INTERNAL_CONFLICT
 LOCALITY_CLIENT_FACT_ENVIRONMENT_MISMATCH
 LOCALITY_CLIENT_FACT_DAY_MISMATCH
 LOCALITY_CLUSTER_UID_MISSING
@@ -303,7 +306,10 @@ LOCALITY_POD_UID_MISSING
 LOCALITY_CAPTURE_MISSING_POD
 LOCALITY_CAPTURE_MODE_UNSUPPORTED
 LOCALITY_CAPTURE_TEMPORAL_MISMATCH
+LOCALITY_CAPTURE_TIMESTAMP_MISSING
+LOCALITY_OBSERVATION_TEMPORAL_MISMATCH
 LOCALITY_POD_OWNER_UNRESOLVED
+LOCALITY_POD_OWNER_AMBIGUOUS
 LOCALITY_POD_OWNER_CONFLICT
 LOCALITY_NAMESPACE_CONFLICT
 LOCALITY_LEGACY_V1_UNSCOPED
@@ -314,7 +320,32 @@ LOCALITY_NO_ELIGIBLE_LOCAL_OBSERVATION
 LOCALITY_LOCAL_COVERAGE_UNAVAILABLE
 ```
 
-`LOCALITY_NO_ELIGIBLE_LOCAL_OBSERVATION` is *not an absence claim*. Use existing v0.5 public deployment-resolution codes unchanged on existing surfaces. The I1 review must freeze which cause maps to which disposition and how multiple applicable causes are preserved, rather than letting I2 prioritize by accident. Existing v0.5 identity conflicts must not be silently downgraded to a generic unsupported outcome.
+### 10.1 Proposed deterministic cause-to-disposition contract
+
+`LOCALITY_NO_ELIGIBLE_LOCAL_OBSERVATION` is *not an absence claim*. Use existing v0.5 public deployment-resolution codes unchanged on existing surfaces. The following cause mapping is proposed as an I1 freeze decision, not left to I2 implementation convenience:
+
+| Phase and exact cause | Locality disposition | Stable reason / treatment |
+|---|---|---|
+| Request asks for an unadmitted dimension/relation or sub-day resolution | `UNSUPPORTED` | `LOCALITY_UNSUPPORTED_DIMENSION`, `LOCALITY_UNSUPPORTED_RELATION` or `LOCALITY_UNSUPPORTED_TEMPORAL_RESOLUTION`; request preflight, never fall back to wildcard. |
+| `SERVER_ONLY` or no corresponding CLIENT identity carrier at all | `INSUFFICIENT_EVIDENCE` | `LOCALITY_SERVER_ONLY_NO_CLIENT` for SERVER_ONLY; `LOCALITY_CLIENT_IDENTITY_MISSING` for other absent carrier; v1 handling unchanged. |
+| CLIENT carrier exists, but Pod UID and/or cluster UID is missing | `INSUFFICIENT_EVIDENCE` | Specific `LOCALITY_POD_UID_MISSING` and/or `LOCALITY_CLUSTER_UID_MISSING`; **do not also** emit generic CLIENT-identity-missing. |
+| CLIENT environment is missing | `INSUFFICIENT_EVIDENCE` | `LOCALITY_CLIENT_IDENTITY_MISSING`; preserve accepted v1 semantics. |
+| CLIENT environment is present but differs from the accepted fact or requested environment | `INAPPLICABLE` | `LOCALITY_CLIENT_FACT_ENVIRONMENT_MISMATCH`; no invented v2 association. |
+| CLIENT/fact event timestamps cannot inhabit the same UTC day | `INAPPLICABLE` | `LOCALITY_CLIENT_FACT_DAY_MISMATCH`; v1 unchanged. |
+| Two known values contradict *within the same CLIENT Resource/carrier* | `CONFLICT` | `LOCALITY_CLIENT_INTERNAL_CONFLICT`; do not store positive v2; no comparison against an as-yet-unselected capture at ingestion. |
+| Legacy v1-only evidence, no original replayable CLIENT interaction | `INSUFFICIENT_EVIDENCE` | `LOCALITY_LEGACY_V1_UNSCOPED`; never infer Pod locality. |
+| Selected Kubernetes contribution is `DECLARED_MANIFEST`, not an admissible captured source | `UNSUPPORTED` | `LOCALITY_CAPTURE_MODE_UNSUPPORTED` for observed Workload-local claims. |
+| Captured source has no matching original Pod UID/current owner chain | `UNRESOLVED` | `LOCALITY_CAPTURE_MISSING_POD` or `LOCALITY_POD_OWNER_UNRESOLVED`; old v2 event remains intact. |
+| Selected capture has no parseable real `capturedAt` | `INSUFFICIENT_EVIDENCE` | `LOCALITY_CAPTURE_TIMESTAMP_MISSING`; preserve existing v0.5 temporal limitation on its own surface. |
+| Known v2 bucket `last_seen` or known capture `capturedAt` falls outside the exact selected full-day window | `INAPPLICABLE` | `LOCALITY_OBSERVATION_TEMPORAL_MISMATCH` or `LOCALITY_CAPTURE_TEMPORAL_MISMATCH` respectively. |
+| Exact CLIENT cluster/namespace or present optional consistency attributes contradict the selected captured Pod/owner chain | `CONFLICT` | `LOCALITY_CLUSTER_UID_CONFLICT` / `LOCALITY_NAMESPACE_CONFLICT` / applicable bounded Path C contradiction; **query-time only**, retained v2 evidence unchanged. |
+| Multiple admissible current captured Pod/owner candidates with no proved contradictory identity | `AMBIGUOUS` | `LOCALITY_POD_OWNER_AMBIGUOUS`; preserve the distinct v0.5 Path C `AMBIGUOUS` meaning, no arbitrary candidate. |
+| Contradictory current owner paths / known identity assertions | `CONFLICT` | `LOCALITY_POD_OWNER_CONFLICT`; do not collapse into `AMBIGUOUS` or `UNRESOLVED`. |
+| No eligible local CALLS / no admitted Workload-level coverage | `INSUFFICIENT_EVIDENCE` | `LOCALITY_NO_ELIGIBLE_LOCAL_OBSERVATION` / `LOCALITY_LOCAL_COVERAGE_UNAVAILABLE`; never local `NOT_OBSERVED_IN_WINDOW`. |
+
+**Evaluation and multiple causes:** validate unsupported *requests* first; evaluate each candidate's known source/environment/time applicability before its capture/owner identity; evaluate ingestion eligibility separately from later query-snapshot checks. Do not report a conflict about a candidate already known outside the selected requested scope as a supported in-scope claim. For one candidate and phase, retain **all independently supported reason codes**, deduplicate and sort lexicographically; one primary disposition is chosen deterministically using `CONFLICT > AMBIGUOUS > INAPPLICABLE > UNRESOLVED > INSUFFICIENT_EVIDENCE > APPLICABLE` among the applicable evaluated causes. `UNSUPPORTED` belongs to request/source-mode preflight, not a way to downgrade a real in-scope conflict. Other excluded candidates remain individually represented, not hidden by the primary outcome. The reason codes are not proof that every missing attribute was examined when an earlier gate rejected a candidate. The exact phase/cause table and precedence are normative **once reviewed as I1**, while I3 remains responsible for their public wire mapping.
+
+A Path C `AMBIGUOUS`, `CONFLICT` or `UNRESOLVED` status shall retain its source-specific evidence and reason, including when the new locality projection abstains. No Service identity is ever changed by name matching or by extracting a narrower scope, and an existing v0.5 refusal cannot be converted to positive locality. Add negative cases to the independently authored dossier for missing carrier versus missing field and for ingestion-known versus capture-known contradictions.
 
 ## 11. Provenance, source lifecycle, conditional snapshot identity and cost
 
@@ -333,26 +364,33 @@ I2 shall prove the no-v2 golden fingerprint before enabling conditional v2 proje
 
 I5 must qualify an **actual controlled execution**, not just generated telemetry. I1 SHALL deliver its reproducible acquisition plan, identify an owner or record the pending owner decision as an **I1 blocker**, specify source/artifact pins and provide early I2 rehearsal instructions.
 
-Minimum permitted scenario (two clusters are *not* required):
+Minimum permitted scenario (two clusters are *not* required, but **two distinct supported Workload objects are**):
 
 ```text
-one canonical caller Service: orders
+one canonical caller AIP Service: service:orders
 cluster K / namespace N
-  old Workload W1, captured Pod P1
-  new/canary Workload W2, captured Pod P2
+  old/base Deployment "orders"         = distinct Workload W1, Pod UID P1
+  new/canary Deployment "orders-canary" = distinct Workload W2, Pod UID P2
+  both CLIENT Resources resolve to canonical caller service:orders
 
-actual CLIENT from P1: orders CALLS pricing
-actual CLIENT from P2: orders CALLS legacy-pricing
+actual CLIENT from P1:
+  service:orders --CALLS--> Operation pricing:GET /prices
+  (canonical Operation owner: service:pricing)
+actual CLIENT from P2:
+  service:orders --CALLS--> Operation legacy-pricing:GET /prices
+  (canonical Operation owner: service:legacy-pricing)
 
 selected captured-resource revision during rollout overlap:
   source.clusterUid == each CLIENT Resource k8s.cluster.uid
-  P1 and P2 are both present with different captured UIDs
-  P1 -> one supported owner chain -> W1
-  P2 -> one supported owner chain -> W2
-  capturedAt and event times are inside the admitted full UTC-day context
+  P1 and P2 are both present with distinct captured UIDs
+  P1 -> unique Pod -> ReplicaSet -> Deployment "orders"         (W1)
+  P2 -> unique Pod -> ReplicaSet -> Deployment "orders-canary"  (W2)
+  each v2 bucket.last_seen and capturedAt match the full-UTC-day window
 ```
 
-The acquisition runbook must document the reference deployment revision, authentic CLIENT Resource emission/collection method, cluster identity provenance, capture envelope/owner-chain extraction, `capturedAt`, environment mapping, source revisions and SHA-256 pins, independently authored expected results **before** AIP evaluation, clean offline replay and teardown. Capture the **old/new overlap before a later authoritative capture replaces either old resource**. Include a later post-promotion captured revision to test that old Pod Workload locality becomes `UNRESOLVED`, not absent or transferred.
+**Do not use one Deployment rolling from ReplicaSet R1 to R2 as the two-locality positive fixture.** Both Pod owner chains would resolve to that *same* Deployment/Workload under admitted v0.5 semantics. Even when v2 emits two distinct per-Pod identities, a Workload-level projection must not count them as two Workload localities. Adding ReplicaSet-local granularity would require a separately reviewed parent-scope amendment and is not part of this I1 draft. The provider Service in parentheses above is a **logical** Operation owner for I3's dependency roll-up (§5.1), never evidence of target runtime placement.
+
+The acquisition runbook must document the **two distinct Deployment identities and one canonical caller AIP Service binding**, exact canonical target Operation IDs/owners, reference deployment revision, authentic CLIENT Resource emission/collection method, cluster identity provenance, capture envelope/owner-chain extraction, `capturedAt`, environment mapping, source revisions and SHA-256 pins, independently authored expected results **before** AIP evaluation, clean offline replay and teardown. Capture the **old/new overlap before a later authoritative capture replaces either old resource**. Include a later post-promotion captured revision to test that old Pod Workload locality becomes `UNRESOLVED`, not absent or transferred.
 
 Label distinctly (a) actual independently recorded controlled reference, (b) independently authored expected answers, (c) any synthetic negative-test fixture, (d) the frozen upstream Quarkus/Airflow dossiers, and (e) any future external product pilot. A controlled run is not automatically a production observation or a pilot. Do not rewrite upstream truth to make it suitable for locality.
 
@@ -365,9 +403,9 @@ Before I2 implementation, I1 SHALL freeze source evidence and expected result fo
 | ID | Input situation | Expected I1 outcome / forbidden claim |
 |---|---|---|
 | L01 | Same canonical v2 key with reordered input fields | Byte-identical key; one v2 bucket identity. |
-| L02 | Same caller Service, relation and target in one UTC day, observed from two Pod UIDs | Distinct v2 keys; one original v1 relation bucket under legacy key. |
+| L02 | Same caller Service, relation and **Operation ID** in one UTC day, observed from two Pod UIDs | Distinct v2 keys; one original v1 caller-Service → Operation relation bucket under legacy key; no automatic second Workload locality. |
 | L03 | Same Pod UID text in two different cluster UIDs | Distinct scoped v2 keys; no cross-cluster alias. |
-| L04 | One cluster/namespace, two Workloads with distinct qualified CALLS | Independently supported caller-local results; no inferred exclusivity. |
+| L04 | One cluster/namespace, **two distinct Deployment Workloads** bound to one caller Service; each Pod calls a different canonical Operation | Independently supported caller-Workload → Operation results; logical provider Service is the Operation owner, never inferred target placement or exclusivity. |
 | L05 | Existing v1-only CALLS plus separately persisted same-Service Pod identity | Unscoped v1 only; no positive local backfill. |
 | L06 | CLIENT lacks Pod UID / cluster UID | v1 path unaffected; no positive scoped v2; explicit missing-identity disposition. |
 | L07 | Paired CLIENT/SERVER in same batch | CLIENT Resource attributed; SERVER-derived route/fact timestamp preserved. |
@@ -380,9 +418,9 @@ Before I2 implementation, I1 SHALL freeze source evidence and expected result fo
 | L14 | Valid new v2 records | One conditionally changed canonical fingerprint with same-snapshot provenance. |
 | L15 | Exact current captured Pod, owner, cluster, time | Workload-local applicable caller path. |
 | L16 | CLIENT cluster UID conflicts with captured envelope `clusterUid` | Explicit conflict; no positive locality. |
-| L17 | DECLARED_MANIFEST, missing `capturedAt`, incompatible capture | No positive observed caller-Workload locality. |
+| L17 | DECLARED_MANIFEST, missing `capturedAt`, incompatible captured day | No positive observed caller-Workload locality; different `UNSUPPORTED`/`INSUFFICIENT_EVIDENCE`/`INAPPLICABLE` diagnostics per §10.1. |
 | L18 | P1 replaced by P2, later snapshot lacks P1 | Original P1 event persists, P1's Workload resolution `UNRESOLVED`, never inferred at P2. |
-| L19 | Multiple/inconsistent current Pod owner paths | Preserve existing ambiguity/conflict; no specificity or recency guess. |
+| L19 | Multiple admissible owner Workloads without contradiction versus contradictory owner assertions | Preserve distinct `AMBIGUOUS` versus `CONFLICT` dispositions/reasons; no specificity or recency guess. |
 | L20 | Caller local and target locality missing | Only caller-local CALLS; target locality unknown. |
 | L21 | Applicable Service-level declaration + independently observed scoped CALLS | Source-scoped declared + caller-local observed, I2 shared owner returns `CONFIRMED`. |
 | L22 | Scoped observed CALLS without applicable declaration | `OBSERVED_ONLY`; wrong Service/Operation declaration cannot confirm. |
@@ -390,12 +428,17 @@ Before I2 implementation, I1 SHALL freeze source evidence and expected result fo
 | L24 | Region/tenant/version-locality or messaging locality requested | Explicit unsupported category; no global fallback. |
 | L25 | Sub-day range or event exactly at next-day midnight | Unsupported scoped resolution or exact UTC-day boundary; existing v0.5 window untouched. |
 | L26 | Name-only, co-location, configured Service `DEPLOYED_AS` | No per-interaction caller locality inferred. |
-| L27 | Controlled old/new overlap snapshot then later post-rollout selected capture | Old/new comparison only on overlap; subsequently missing old Pod -> `UNRESOLVED`. |
+| L27 | Overlap captures old `orders` and new `orders-canary` **distinct Deployments** (one caller AIP Service), then later authoritative capture removes old Pod | Two Workload localities only on compatible overlap snapshot; subsequently missing old Pod -> `UNRESOLVED`. |
 | L28 | Many successive Pods at constant Workload count | Distinct identities; Pod-churn storage/read-cost scenario. |
 | L29 | Incomplete inventory or unauthorized source removal | No inferred local absence and no widened removal authority. |
-| L30 | Intent/agent narrative changes alone | Current-State locality evidence/qualification unchanged. |
+| L30 | Intent/agent narrative changes alone | Current-State observation window stays distinct from future Intent effective interval; no changed evidence/qualification. |
+| L31 | Known v2 `last_seen` day D, captured Pod `capturedAt` day D+1, request exactly D | `INAPPLICABLE` / `LOCALITY_CAPTURE_TEMPORAL_MISMATCH`, no positive D locality; §8 exact inclusive predicate. |
+| L32 | Two observed Operations of one canonical provider Service, plus missing/ambiguous Operation owner negative | Per-Operation qualification and deduplicated evidence refs remain distinct; I3 grouping may derive one logical provider dependency only from uniquely owned positive Operations, with no cross-Operation false `CONFIRMED`. |
+| L33 | Two ReplicaSets' Pods under **one** Deployment versus two distinct Deployment objects | Two v2 Pod keys in either case; **one** Workload locality in first case, two potentially evidenced localities only in second. |
+| L34 | CLIENT Resource passes ingestion guards but selected capture has contradictory namespace/cluster; versus CLIENT-internal contradiction | The first retains v2 Pod-bound evidence and gives query-time `CONFLICT`; the second refuses v2 at ingestion, with v1 unchanged. |
+| L35 | SERVER_ONLY, absent CLIENT carrier, specific missing Pod/cluster fields, Path C ambiguous owners and known conflict | Deterministic §10.1 cause/disposition mapping; generic missing-carrier code and specific missing-field codes never emitted redundantly. |
 
-Golden ID vectors must be evaluated under input permutation and clean replays; source/mapping/reconciliation cases must be independently expected, not self-oracled. I4 later runs the exact final candidate twice from clean state and tests service/REST/MCP semantic parity. I1 shall not claim those later tests passed.
+Golden ID vectors (including L01–L35 after this review) must be evaluated under input permutation and clean replays; source/mapping/reconciliation cases must be independently expected, not self-oracled. I4 later runs the exact final candidate twice from clean state and tests service/REST/MCP semantic parity. I1 shall not claim those later tests passed.
 
 ## 14. Contract deliverables and bounded slices
 
@@ -405,7 +448,7 @@ Proposed supporting files under `docs/specifications/0.6.0/` (I1 may consolidate
 i1-locality-and-evidence-applicability.md    # this spec after review
 i1-locality-support-matrix.md                # dimension × evidence × claim kind
 i1-scoped-evidence-v2-contract.md            # key/serialization/replay/migration/snapshot
-i1-conformance-dossier.md                   # independent L01–L30 truth and ID vectors
+i1-conformance-dossier.md                   # independent L01–L35 truth and ID vectors
 i1-capture-acquisition-runbook.md           # actual capture plan, owner, I2 rehearsal
 i1-completion-record.md                     # exact revision, accepted choices and I2 handoff
 ```
@@ -416,7 +459,7 @@ i1-completion-record.md                     # exact revision, accepted choices a
 | I1.2 | Scope/UTC-day/CLIENT field and disposition contract | Exact normalization, allowlist and negative tests frozen. |
 | I1.3 | v2 canonical key, transition, replay, conditional snapshot/retention contract | Independently authored ID vectors and no-v2 golden-pin test specification. |
 | I1.4 | Real controlled reference acquisition plan | Named owner, cluster/Pod/capture fields, rollout-overlap timing, replay/teardown and I2 rehearsal steps. |
-| I1.5 | Independent conformance review and handoff | L01–L30 expected dossier, no unresolved semantic blocker, exact completion record. |
+| I1.5 | Independent conformance review and handoff | L01–L35 expected dossier, parent §9 exit-gate traceability, no unresolved semantic blocker, exact completion record. |
 
 I1 may include pure contract validators/golden-vector scripts, but SHALL NOT silently absorb I2's storage, new graph writes, public APIs, or release-demo implementation. Documentation-only PRs need no claimed application test run.
 
@@ -424,18 +467,21 @@ I1 may include pure contract validators/golden-vector scripts, but SHALL NOT sil
 
 The parent semantic constraints are already accepted; these I1 literal freeze proposals must be explicitly accepted **before corresponding I2 implementation and independent fixture authoring**:
 
-| Decision | Draft 0.2 proposal / parent constraint |
+| Decision | Draft 0.3 proposal / parent constraint |
 |---|---|
 | Internal version/type naming | `locality-contract/1`, role-specific typed scope and disposition; public wire contract belongs to I3. |
 | Required per-interaction Resource | Actual CLIENT environment, Pod UID, cluster UID, event timestamp; existing canonical CALLS IDs. |
-| Cross-batch carrier | Extend bounded transient CLIENT carrier with original admitted Resource fields, both arrival orders. |
+| Cross-batch carrier | Extend bounded transient CLIENT carrier with original admitted Resource fields, both arrival orders; distinguish ingestion-known CLIENT contradictions from later capture inconsistencies. |
 | v2 key/ID | Version 2, fact triple, environment, UTC day, caller cluster UID and Pod UID; full SHA-256 opaque ID. |
 | UTC-day selector | Inclusive date range normalized to UTC midnight through last-day 23:59:59.999999; v0.5 datetime path unchanged. |
-| Capture owner mapping | Query-time reconciliation in selected current snapshot; removed historical Pod -> `UNRESOLVED`. |
+| Capture owner mapping | Query-time reconciliation in selected current snapshot; removed historical Pod -> `UNRESOLVED`; Path C `AMBIGUOUS` distinct from `CONFLICT`. |
 | v1/v2 coexistence and migration | Exactly original v1 meaning plus isolated v2 when eligible; no retroactive v1 Pod backfill or double-count. |
 | Snapshot | One conditional canonical fingerprint; exact existing golden IDs on no-v2 input. |
+| Cause → disposition and multiple reasons | Freeze §10.1 stage/cause table, new `AMBIGUOUS`, deterministic phase/primary disposition and sorted distinct reasons; distinguish SERVER_ONLY, missing carrier vs Pod/cluster fields, known env mismatch and query-time contradictions. |
+| Operation → Service projection | I1 preserves per-Operation status and unique canonical owning provider Service; I3 freezes bounded roll-up schema, group-level qualification display, evidence union, owner ambiguity and limits (§5.1). |
+| Observation window vs Intent | `LocalityDayContextV1` records actual Current-State observation days, never future v0.7 Intent effective interval (§4.3, parent §9.5). |
 | Local coverage | None admitted in this slice; local `NOT_OBSERVED_IN_WINDOW` forbidden. |
-| Actual capture | One cluster/two Workloads permitted; I1 plan, I2 rehearsal, I5 actual captured overlap, independently expected results. |
+| Actual capture | One cluster and **two distinct Deployment Workloads** behind one canonical caller AIP Service; one Deployment/two ReplicaSets is invalid for the positive two-locality test; I1 plan, I2 rehearsal, I5 actual overlap. |
 | Cost/retention | Account for distinct Pod UID churn; ADR 0012 still Proposed, no implicit compaction. |
 
 Any proposed alternative to the key spelling, temporal precision, replay handling, storage isolation or diagnostics must preserve the parent and appear as a reviewed amendment before I2 builds against it. Do not leave semantically important choices to implementation convenience.
@@ -447,11 +493,27 @@ I1 is complete **only** when:
 1. The versioned role/scope vocabulary and evidence/dimension/claim-kind matrix explicitly state admitted and unsupported cases, caller/target/source/claim distinction and no wildcard fallback.
 2. A testable in-batch/cross-batch CLIENT attribution contract cannot assign a relation by Service/Pod co-occurrence, name-only placement, SERVER identity or configured `DEPLOYED_AS`.
 3. Exact v2 key/golden vectors, v1/v2 coexistence, migration, clean replay and no-double-count legacy rules are frozen.
-4. Whole UTC-day timestamp/capture compatibility, selected-snapshot Pod churn and machine-readable refusals are independently covered.
+4. Whole UTC-day timestamp/capture compatibility, including exact v2 `last_seen`/capture `capturedAt` inclusive predicates, selected-snapshot Pod churn and **deterministic §10.1 cause-to-disposition mapping** (including `AMBIGUOUS` and multiple sorted reasons), are independently covered.
 5. Matching Service-scoped declaration and local observation qualify through the existing single owner, with no Workload-local coverage/negative claim invented.
 6. No-v2 legacy fingerprint and frozen golden pins, plus conditional one-snapshot v2 projection, have exact before/after expected vectors.
-7. I1 has a named acquisition owner, required real CLIENT/Kubernetes identity/capture pins, overlap timing, clean offline replay/teardown plan and I2 early rehearsal gate.
-8. Independently authored L01–L30 results are reviewed; no semantic blocker is silently deferred, and the completion record identifies evidence/source revisions, decisions and actual check status (`NOT_RUN` when appropriate).
+7. I1 has a named acquisition owner, two distinct supported Deployment Workloads of one caller Service, Operation-accurate expected facts, required CLIENT/Kubernetes capture pins, overlap timing, clean offline replay/teardown plan and I2 early rehearsal gate.
+8. Independently authored L01–L35 results and the **parent §9 gate-to-I1 traceability matrix below** are reviewed; no semantic blocker is silently deferred, and the completion record identifies evidence/source revisions, decisions and actual check status (`NOT_RUN` when appropriate).
+
+9. Scope extraction never broadens an existing v0.5 refusal and never rewrites canonical Service or Operation ownership by display-name matching (§§2, 5.1, 6, 9–10); positive/negative vectors make these failures visible.
+10. Observation-day types and documentation explicitly distinguish evidence observation windows from future Intent effective intervals; Intent cannot enter local Current-State qualification (§4.3, L30).
+
+### 16.1 Traceability to accepted parent §9 exit gates
+
+| Parent I1 gate | Contract location | Required I1 completion evidence |
+|---|---|---|
+| 1. Exact versioned dimension/evidence contract | §§4–5, 7, 10, 15; DoD 1/3 | Frozen support matrix, v2 ID vectors, admissibility/disposition contract. |
+| 2. Distinct caller, target, source and claim examples | §§2.1, 4–5, 12–13; DoD 1/7/8 | Operation-accurate two-Deployment case and negative target-placement tests. |
+| 3. No broader v0.5 refusal or name-based Service reidentity | §§2, 5.1, 6, 9–10, L05/L20/L26/L32; DoD 2/9 | Independent identity/refusal tests; no guessed Service/Operation owner. |
+| 4. Machine-visible missing/conflict/unsupported/time dispositions | §§8–10, 13/15; DoD 4/8 | Frozen cause/reason table incl. `AMBIGUOUS` and day-D/day-D+1 negative. |
+| 5. Observation window differs from future Intent effective interval | §4.3, §8, L30; DoD 10 | Separate typed semantics, never Current-State derivation from Intent. |
+| 6. Runtime identity positive versus name/co-location negative | §§6, 9, 12–13, L15/L26/L33; DoD 2/7/8 | Actual CLIENT + capture path and one-Deployment/ReplicaSet rejection. |
+| 7. v1/v2 identity/migration/replay/cross-batch/day/retention | §§6–8, 11, 13/15; DoD 3/4/6/8 | Golden v2 IDs, frozen no-v2 fingerprint, coexistence, ADR 0012/cardinality handoff. |
+| 8. Selected-snapshot Pod churn and executable real capture plan | §§9, 12–13, L18/L27/L31; DoD 4/7/8 | Distinct Deployment overlap, matching CLIENT/capture cluster UID, capturedAt, revision pins and I2 rehearsal plan. |
 
 **I2 handoff:** implement the frozen CLIENT carrier, isolated v2 evidence, v1/v2 migration/replay, query-snapshot locality assessment, one fingerprint and shared qualification reuse. **I3 handoff:** enumerate bounded evidenced candidates and expose only admitted, scope-qualified answers with same-snapshot drill-down and unchanged v0.5 routes. This I1 spec does not itself claim the new public capability, actual I5 capture, product pilot, v0.6 qualification or release publication.
 
