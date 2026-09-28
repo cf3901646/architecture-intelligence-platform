@@ -52,7 +52,7 @@ The capture must contain **actual** CLIENT spans from real HTTP calls made by th
 | `k8s.deployment.name` | A literal per Deployment (`orders` or `orders-canary`), optional consistency. It must equal the captured owner Deployment, or phase 4 correctly reports `CONFLICT`. |
 | `k8s.cluster.uid` | The `kube-system` Namespace UID, read once with `kubectl get namespace kube-system -o jsonpath='{.metadata.uid}'` and injected as a literal env value at apply time. Its provenance is the same command that produces the envelope's `clusterUid`, recorded in the run record. The value must be byte-equal to the envelope `clusterUid` (I1 §4.2, §12; L16). |
 | `deployment.environment.name` | A literal `locality-capture` on every workload, matching the AIP observation-context environment |
-| Collector | The OpenTelemetry Collector (contrib distribution, image pinned by digest) with an OTLP receiver and a `file` exporter in **OTLP JSON** format, one export request per line. There is no `k8sattributes` or `resource` processor, so the Resource is exactly what the SDK emitted. A `batch` processor is allowed because it preserves each `ResourceSpans`' Resource. |
+| Collector (recording) | The OpenTelemetry Collector **contrib** distribution, image pinned by digest, because the `file` exporter is contrib-only. It has an OTLP receiver and a `file` exporter with `format: json`, which writes one OTLP-JSON `TracesData` object (`resourceSpans`, the same shape as an OTLP/HTTP JSON `ExportTraceServiceRequest`) per line. There is no `k8sattributes` or `resource` processor, so the Resource is exactly what the SDK emitted. A `batch` processor is allowed because it preserves each `ResourceSpans`' Resource; the recorded lines are then the batch boundaries. **`otlp.jsonl` is not AIP input.** AIP's `/v1/traces` accepts only `application/x-protobuf` (`app/api/telemetry.py`:19) and `decode_export_request` parses protobuf bytes. The recording reaches AIP only through the §6 replay Collector. |
 | Forbidden sources | Collector-side enrichment of `k8s.*`; any value derived from Pod names, labels or IP association; any hand edit of the recorded file |
 
 ## 4. Run procedure (for I5, rehearsed by I2 in §9)
@@ -122,7 +122,8 @@ Proposed location, which I5 may rename: `tests/fixtures/locality/two-workload-ca
 
 | Artifact | Content | Pin |
 |---|---|---|
-| `otlp.jsonl` | The Collector file-exporter output, unmodified | SHA-256 |
+| `otlp.jsonl` | The recording Collector's file-exporter output, unmodified: one OTLP-JSON request per line | SHA-256 |
+| `replay/collector-replay.yaml`, `replay/replay.py` | The §6 replay Collector configuration and the line-by-line replay driver | SHA-256; Collector image digest in `RUN-RECORD.md` |
 | `c1/envelope.yaml`, `c1/resources.yaml` | Overlap capture | SHA-256 in `envelope.yaml` `files[]` and in `SHA256SUMS` |
 | `c2/envelope.yaml`, `c2/resources.yaml` | Post-promotion capture | same |
 | `declarations/` | `orders` architecture manifest; `pricing` and `legacy-pricing` OpenAPI | SHA-256 |
@@ -137,7 +138,24 @@ Proposed location, which I5 may rename: `tests/fixtures/locality/two-workload-ca
 No live cluster is needed after acquisition, and AIP gains no live Kubernetes admission (I1 §12). Replay into a **clean** AIP state:
 1. Import the declarations.
 2. Import C1, or for the post-promotion checks C2, as the selected Kubernetes source. Each is a snapshot contribution, not a historical store, so selecting C2 replaces C1 (I1 §9).
-3. POST each line of `otlp.jsonl` in order to a Collector's OTLP/HTTP receiver that forwards to AIP. This is the existing golden-path replay pattern (`examples/release-golden-path/golden_path.py` `_post_otlp`), and it preserves the recorded batch boundaries.
+3. Replay the traffic through the **pinned replay path**, which is the only supported wire path:
+
+   ```text
+   otlp.jsonl --(one line = one request, in file order)--> POST /v1/traces, Content-Type: application/json
+       --> replay Collector OTLP/HTTP receiver (:4318)
+       --> otlphttp exporter, OTLP protobuf, Content-Type: application/x-protobuf
+       --> AIP /v1/traces
+   ```
+
+   `replay/collector-replay.yaml` must:
+   - use the same Collector image as `docker-compose.demo.yml`, pinned by digest;
+   - have `receivers: otlp` with `protocols.http` only;
+   - have **no processors**: no `batch`, which would merge or split recorded requests, and no attribute or resource processors;
+   - have one exporter `otlphttp/aip` with `encoding: proto`, `compression: none` (AIP does not negotiate `Content-Encoding`, as in the demo config), `sending_queue.enabled: false` and `retry_on_failure.enabled: false`.
+
+   Without a queue each received request is forwarded synchronously, one to one. With retries off, a failed export stops the replay instead of silently re-sending: a repeated POST can double-count v1, the disclosed gap in v2 contract §7.
+
+   `replay/replay.py` posts each line in order, requires HTTP 200 from the Collector for each, and waits for AIP's revision to settle before the next line. This is the golden-path pattern (`examples/release-golden-path/golden_path.py` `_post_otlp` and `_wait_for_revision_to_settle`). It aborts on the first non-200 response.
 
 Two clean runs must produce identical normalized results (I1 §13; I4 repeats this for the final candidate).
 
@@ -174,7 +192,7 @@ A controlled `kind` run is not a production observation and not a pilot.
 
 I2 builds the §3 harness and runs §4 once as a **rehearsal**. Rehearsal artifacts are labelled `rehearsal`, are not I5 evidence, and are not committed as the reference. The rehearsal passes when all of the following hold:
 1. Every recorded CLIENT Resource carries a non-empty `k8s.pod.uid` equal to the Pod's API UID, a `k8s.cluster.uid` byte-equal to `$CLUSTER_UID`, and `deployment.environment.name=locality-capture`.
-2. `otlp.jsonl` decodes through AIP's OTLP decoder, and C1/C2 validate as `KubernetesSourceSnapshot` envelopes with matching `files[]` digests.
+2. **The replay wire path works as pinned.** Each `otlp.jsonl` line is accepted by the replay Collector (HTTP 200), and the forwarded **protobuf** request is accepted by AIP `/v1/traces` (HTTP 200, no Collector export error). The number of requests AIP receives equals the number of lines, so batch boundaries are preserved and nothing is merged, split or retried; check this with the Collector's exporter request metrics or an AIP request log. The Resource attributes AIP decodes (`service.name`, `deployment.environment.name`, `k8s.pod.uid`, `k8s.cluster.uid`, `k8s.namespace.name`, `k8s.pod.name`, `k8s.deployment.name`) equal the recorded line's values byte-for-byte. C1 and C2 validate as `KubernetesSourceSnapshot` envelopes with matching `files[]` digests. The runbook does **not** claim that raw `otlp.jsonl` decodes with AIP's protobuf decoder.
 3. P1 and P2 resolve through the unmodified owner-chain module to Deployments `orders` and `orders-canary` respectively, with distinct Deployment UIDs.
 4. Once I2's carrier exists, CLIENT identity is retained for both in-batch and cross-batch arrival orders in the replay (I1 §6.1; L07, L08).
 5. Every §4 stop condition is checked and recorded.
@@ -190,7 +208,7 @@ A rehearsal failure is an I2 blocker, not an I5 surprise.
 | §12: authentic CLIENT Resource emission and collection; cluster identity provenance | §3 |
 | §12: overlap capture before replacement; later post-promotion capture; `capturedAt`; environment mapping; teardown | §4 |
 | §12: source revisions and SHA-256 pins | §5 |
-| §12: clean offline replay, with no live admission in AIP | §6 |
+| §12: clean offline replay, with no live admission in AIP; pinned JSON → Collector → protobuf wire path | §6, §9 gate 2 |
 | §12: expected results authored before evaluation | §7 |
 | §12: labels (a)–(e) | §8 |
 | §12: I2 early rehearsal; parent §9 gate 8 (executable plan before I2) | §9 |
