@@ -1,3 +1,4 @@
+from collections.abc import Sequence
 from datetime import datetime
 from typing import Literal
 
@@ -83,7 +84,7 @@ def _record_if_observed_only(
     entities: dict[str, ObservedOnlyEntity],
     *,
     entity_id: str,
-    discovery_status: DiscoveryStatus,
+    discovery_status: DiscoveryStatus | None,
     label: Literal["Service", "Operation", "Queue"],
     name: str,
 ) -> None:
@@ -543,8 +544,8 @@ def correlate_queue_observations(
     queue_candidates: list[DeclaredQueueCandidate],
     service_aliases: dict[str, str],
     queue_aliases: dict[str, str],
-    topic_candidates: list[DeclaredTopicCandidate] = (),
-    subscription_candidates: list[DeclaredSubscriptionCandidate] = (),
+    topic_candidates: Sequence[DeclaredTopicCandidate] = (),
+    subscription_candidates: Sequence[DeclaredSubscriptionCandidate] = (),
     topic_aliases: dict[str, str] | None = None,
 ) -> ObservationBatch:
     """Builds observed SENDS/RECEIVES_FROM facts from messaging spans (spec §24-26). Unlike HTTP,
@@ -618,6 +619,8 @@ def correlate_queue_observations(
             topic_aliases=topic_aliases,
         )
         if not destination_decision.accepted:
+            # every refused decision from decide_messaging_destination carries a refusal_reason
+            assert destination_decision.refusal_reason is not None
             unresolved.append(
                 UnresolvedObservation(
                     trace_id=span.trace_id, reason=destination_decision.refusal_reason
@@ -632,6 +635,8 @@ def correlate_queue_observations(
             aliases=service_aliases,
         )
         if not service_decision.accepted:
+            # every refused decision from decide_service_identity carries a refusal_reason
+            assert service_decision.refusal_reason is not None
             unresolved.append(
                 UnresolvedObservation(
                     trace_id=span.trace_id, reason=service_decision.refusal_reason
@@ -639,9 +644,12 @@ def correlate_queue_observations(
             )
             continue
 
+        service_id = service_decision.service_id
+        # every accepted decision from decide_service_identity carries its service_id
+        assert service_id is not None
         _record_if_observed_only(
             entities,
-            entity_id=service_decision.service_id,
+            entity_id=service_id,
             discovery_status=service_decision.discovery_status,
             label="Service",
             name=span.service_name,
@@ -657,20 +665,25 @@ def correlate_queue_observations(
                 )
         else:
             fact_relation_type, object_id = relation_type, destination_decision.queue_id
+            # every accepted queue decision carries its queue_id
+            assert object_id is not None
             _record_if_observed_only(
                 entities,
-                entity_id=destination_decision.queue_id,
+                entity_id=object_id,
                 discovery_status=destination_decision.discovery_status,
                 label="Queue",
                 name=destination_name,
             )
 
+        # An accepted producer decision carries topic_id, an accepted consumer decision carries
+        # subscription_id (decide_messaging_destination only accepts a consumer after matching one).
+        assert object_id is not None
         timestamp = span.end_time
         bucket_start, bucket_end = day_bucket(timestamp)
         evidence_id = ids.observed_evidence_id(
             span.environment,
             bucket_start,
-            service_decision.service_id,
+            service_id,
             fact_relation_type,
             object_id,
         )
@@ -688,7 +701,7 @@ def correlate_queue_observations(
         )
         facts.append(
             ObservedFactCandidate(
-                subject_id=service_decision.service_id,
+                subject_id=service_id,
                 relation_type=fact_relation_type,
                 object_id=object_id,
                 environment=span.environment,
@@ -711,8 +724,8 @@ def adapt(
     service_aliases: dict[str, str],
     queue_aliases: dict[str, str],
     correlation_buffer: HttpCorrelationBuffer | None = None,
-    topic_candidates: list[DeclaredTopicCandidate] = (),
-    subscription_candidates: list[DeclaredSubscriptionCandidate] = (),
+    topic_candidates: Sequence[DeclaredTopicCandidate] = (),
+    subscription_candidates: Sequence[DeclaredSubscriptionCandidate] = (),
     topic_aliases: dict[str, str] | None = None,
 ) -> ObservationBatch:
     """Combines HTTP and queue observations from one decoded OTLP batch into a single
