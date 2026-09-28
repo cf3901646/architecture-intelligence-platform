@@ -25,6 +25,46 @@ def test_custom_max_result_rows_respected():
     assert result.endswith("LIMIT 5")
 
 
+# The row-limit bypasses property testing found: LIMIT used to be searched for in the raw query
+# text, first match only, digits only.
+
+
+def test_limit_inside_a_comment_does_not_count():
+    result = validate_cypher("MATCH (s:Service) RETURN s // LIMIT 1")
+    assert result == "MATCH (s:Service) RETURN s // LIMIT 1\nLIMIT 100"
+
+
+def test_limit_inside_a_string_does_not_count():
+    result = validate_cypher("MATCH (s:Service) RETURN s, 'LIMIT 5' AS x")
+    assert result == "MATCH (s:Service) RETURN s, 'LIMIT 5' AS x LIMIT 100"
+
+
+def test_every_limit_is_clamped_not_just_the_first():
+    query = "MATCH (s:Service) WITH s LIMIT 1 MATCH (q:Queue) RETURN q LIMIT 100000"
+    assert validate_cypher(query) == (
+        "MATCH (s:Service) WITH s LIMIT 1 MATCH (q:Queue) RETURN q LIMIT 100"
+    )
+
+
+def test_appended_limit_goes_on_a_new_line_after_a_trailing_line_comment():
+    result = validate_cypher("MATCH (s:Service) RETURN s // note")
+    assert result == "MATCH (s:Service) RETURN s // note\nLIMIT 100"
+
+
+def test_limit_inside_a_subquery_does_not_bound_the_result():
+    query = "MATCH (s:Service) RETURN s, COUNT { MATCH (s)--(m) RETURN m LIMIT 5 } AS c"
+    assert validate_cypher(query) == query + " LIMIT 100"
+
+
+@pytest.mark.parametrize(
+    "limit",
+    ["10 + 100000", "$n", "toInteger('1000')", "10e5", "0x10", "(1000)"],
+)
+def test_non_literal_limit_is_rejected(limit):
+    with pytest.raises(CypherValidationError, match="single integer literal"):
+        validate_cypher(f"MATCH (s:Service) RETURN s LIMIT {limit}")
+
+
 def test_full_allowed_pipeline_passes():
     query = (
         "MATCH (s:Service) "
