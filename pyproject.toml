@@ -42,6 +42,8 @@ extend-immutable-calls = ["fastapi.Depends", "fastapi.Query", "fastapi.Path", "f
 # the mode, shrink `include` or suppress broadly (see AGENTS.md).
 include = ["app"]
 typeCheckingMode = "standard"
+# Only rule-scoped `# pyright: ignore[<rule>]` comments suppress errors; `# type: ignore` doesn't.
+enableTypeIgnoreComments = false
 pythonVersion = "3.13"
 venvPath = "."
 venv = ".venv"
