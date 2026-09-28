@@ -307,7 +307,7 @@ A and B DEPLOYED_AS Workloads in namespace N
 
 ## 14. Context Selection and Differentiated-Locality Answer
 
-I3 SHALL provide a **bounded deterministic answer to the new product question**, without requiring an LLM to compare loosely related snapshots. The caller selects a subject and an explicit finite set of supported localities, a common observation window and optional exact relation/target filters. Every selected result is evaluated against the **same frozen snapshot/revision fence**. A bounded discovery of candidate localities MAY be provided only where supported by source inventory and SHALL carry enumeration coverage; unenumerated localities remain outside scope.
+I3 SHALL provide a **bounded deterministic answer to the new product question**, without requiring an LLM to compare loosely related snapshots. The caller supplies a subject, supported observation context and optional exact relation/target filters. **Bounded enumeration of evidenced candidate localities is REQUIRED**, not a MAY: discover candidates from current applicable source inventory and independently attributable scoped evidence on one stable snapshot. The answer SHALL disclose the enumeration inventory/revision, included candidates, known unresolved/excluded candidates and reasons, applied bounds, coverage and any truncation. A caller MAY optionally supply a finite exact locality selection for comparison, but need not know the locality list before asking *where*. If the bound is reached, emit an explicit `PARTIAL`/incomplete-enumeration limitation with deterministic continuation or refusal, never silently treat a subset as exhaustive. Localities outside the evaluated inventory remain unknown, not absent. Every included result is evaluated against the **same frozen snapshot/revision fence**.
 
 The answer SHALL distinguish:
 
@@ -320,7 +320,7 @@ The comparison is a deterministic **difference between the supported answers for
 
 ### 14.1 Minimum illustrative fixture
 
-An independently authored source fixture may establish the same declared Service `service:orders` running through two distinct Pod-UID/owner-chain-linked Workload scopes and two admissible OTel client observations:
+An independently authored, disclosed controlled capture/fixture may establish the same declared Service `service:orders` running through two distinct Pod-UID/owner-chain-linked Workload scopes and two admissible OTel CLIENT observations within the same supported UTC-day window:
 
 ```text
 cluster K1 / namespace n1 / caller workload W1:
@@ -336,7 +336,7 @@ Its output must report both supported relationships at their exact caller locali
 
 ## 15. Snapshot, Derivation and Stability
 
-All results SHALL be bound to one stable snapshot and deterministic rule/configuration identity, including locality extraction, source capture/revision, accepted identity mappings, qualification and projection versions. Claim/evidence identifiers SHALL be stable under input permutation and idempotent reimport and distinguish genuinely different scoped assertions. A change in applicable source capture, mapping, rule or locality that affects the answer must be reflected in its lineage and snapshot/assessment identity, not silently treated as an unchanged answer.
+All results SHALL be bound to one stable snapshot and deterministic rule/configuration identity, including locality extraction, source capture/revision, accepted identity mappings, qualification and projection versions. Claim/evidence identifiers SHALL be stable under input permutation and idempotent reimport and distinguish genuinely different scoped assertions. The scoped-v2 evidence path and identity/normalization rules SHALL participate in the v0.6 snapshot and derivation fingerprint without becoming duplicate inputs to legacy v0.5 qualification; v1-only histories stay unscoped. A change in applicable source capture, mapping, rule or locality that affects the answer must be reflected in its lineage and snapshot/assessment identity, not silently treated as an unchanged answer.
 
 An evidence request for a claim SHALL resolve under the **same snapshot**; mismatched or unavailable historical dependencies receive the existing explicit refusal/limitation behavior. This release does not introduce historical snapshot retrieval or trajectory storage. Stale-snapshot retry and revision-fence limits follow the existing service contract; neither transport may silently substitute the newest snapshot.
 
@@ -363,7 +363,7 @@ Minimum semantic request fields, to be frozen in versioned schemas:
 ```text
 subject: full canonical Service identity
 observation context: explicit environment / compatible bounded window
-locality selection: finite, exact, validated scopes
+locality selection: optional finite, exact, validated scope filter; absent = bounded evidenced-candidate enumeration
 relation/target selection: supported bounded filters only
 ```
 
@@ -371,7 +371,8 @@ Minimum answer semantics:
 
 ```text
 ArchitectureAnswer: producer / schema / snapshot / outcome / limitations
-selected scope and per-scope evaluation status
+enumerated evidenced candidate scopes, evaluated inventory/revision and enumeration coverage
+selected scope, known excluded/unresolved scopes, bounds/truncation and per-scope evaluation status
 qualified local claim refs and assessment/claim identity
 where each relation is positively established
 differing supported results, without implicit negative comparison
@@ -390,7 +391,7 @@ Equivalent service, REST, and negotiated MCP requests must agree on claims, scop
 
 ## 19. I3 Exit Gates
 
-I3 is complete when a coding agent or ordinary HTTP client can ask where a qualified dependency holds in two selected supported localities and receive the same deterministic answer, including meaningful abstentions and snapshot-bound drill-down. An independent MCP client SHALL discover the frozen public tool contract, execute the question, resolve evidence at the same snapshot, and reconnect without change in meaning. The existing three v0.5 tools/REST routes and published v0.5.1 demo SHALL pass compatibility regression. A fourth tool is permitted only if the reviewed I3 specification freezes it and the corresponding qualified public schema.
+I3 is complete when a coding agent or ordinary HTTP client can enumerate the evidenced localities of a dependency **without first supplying locality identities**, optionally compare two selected supported localities, and receive the same bounded deterministic answer, including enumeration coverage, meaningful abstentions and snapshot-bound drill-down. An independent MCP client SHALL discover the frozen public tool contract, execute the question, resolve evidence at the same snapshot, and reconnect without change in meaning. The existing three v0.5 tools/REST routes and published v0.5.1 demo SHALL pass compatibility regression. A fourth tool is permitted only if the reviewed I3 specification freezes it and the corresponding qualified public schema.
 
 ---
 
@@ -404,7 +405,15 @@ At a minimum, deterministic scenarios SHALL cover:
 
 | Scenario | Required assertion or refusal |
 |---|---|
-| Same Service, two distinct caller Workloads, two different observed dependencies | Each positive edge stays in the supported caller locality; comparison shows only differences in established claims. |
+| Same Service, two distinct caller Workloads, two different observed dependencies | Ingestion-time CLIENT Pod attribution yields two distinct scoped-v2 evidence records and qualified edges; no Service-level cross-attribution. |
+| Legacy v1 bucket with a separate same-Service Pod identity observation | Unscoped v0.5 relation remains queryable, but no retroactively invented local `CALLS`. |
+| Concurrent v1/v2 contributions and replay/order/cross-batch correlation | Existing v0.5 counts, coverage and answer semantics are not doubled; v2 identities/lineage/snapshot are deterministic. |
+| No requested localities, multiple evidenced caller scopes, inventory exceeding bound | Bounded enumeration returns attributable candidates, included/excluded/unknown and explicit incomplete coverage or refusal; never silently exhaustive. |
+| Matching Service-level declaration and scoped observed call | `CONFIRMED` with separately labelled source-scoped declaration and Workload-local observed evidence; declaration-only never becomes positive Workload-local. |
+| Scoped observation with no applicable declaration | `OBSERVED_ONLY`; wrong/missing source scope cannot confirm it. |
+| Service-level HTTP coverage but no admitted local evidence | No inferred local `NOT_OBSERVED_IN_WINDOW` or verified absence. |
+| Full UTC-day window versus narrower/overlapping partial-day request | The former is eligible under frozen temporal rules; the latter is explicitly unsupported for the first scoped slice. |
+| Same Service, two localities with different targets | Comparison describes only differences between established positive results, not inferred absence. |
 | Existing `DEPLOYED_AS` via configured mapping but spans have no admissible Pod UID | Service placement may resolve; workload-local `CALLS` does not. |
 | Pod UID + current owner chain + compatible window | Caller-local `CALLS` may qualify where other HTTP identity guards also succeed. |
 | Name-only/namespace-only/label-only/co-location-only | No positive runtime locality qualification or interaction. |
@@ -426,19 +435,19 @@ I4 SHALL run all qualifying scenarios twice from clean state with byte-identical
 
 The qualification matrix SHALL include existing v0.5.0/v0.5.1 deterministic evaluation, ingestion/identity/Pub/Sub regression, REST/negotiated MCP interoperability and read-only/security tests. No new transport authorization, persistent distributed assessor, remote reference expansion, broad telemetry payload retention, source-scope widening, or secret capture is permitted by the locality feature. New locality evidence is bounded and sanitized; snapshot and reference identifiers remain opaque on public surfaces.
 
-If performance changes materially because a locality query requires broader snapshot reads, measure against the existing committed read-cost baseline and record resource costs; do not mask a correctness issue with undocumented caching or stronger claims from stale projections. Public answer bounding and determinism outrank maximal graph coverage.
+The new per-Pod/per-relation evidence identity increases bucket cardinality. I4 SHALL measure representative two-locality and higher-cardinality ingestion/read/fingerprint cost and retained evidence size against the existing benchmark, with an explicit growth/bound budget and product impact. [ADR 0012](../../adr/0012-observed-evidence-retention.md) remains **Proposed**, not an implemented retention policy: do not silently compact, delete or coarsen scoped evidence to make performance pass. Any later accepted compaction rule must preserve locality identity/provenance and explicitly degrade time resolution and snapshot identity; unscoped compaction must not silently erase scoped support. Do not mask a correctness issue with undocumented caching or stronger claims from stale projections. Public answer bounding and determinism outrank maximal graph coverage.
 
 ## 22. I5 Real-System Qualification
 
 I5 SHALL revalidate the released, pinned **Quarkus Super Heroes** and **Apache Airflow** v0.5 dossiers on the final v0.6 candidate, preserving independent upstream truth and source-mode labels. Quarkus provides a realistic positive developer story; Airflow remains a materially different system and an important negative/insufficient-evidence case for application dependencies. Their lack of a suitable pair of upstream-proven cross-locality `CALLS` examples is a **coverage gap**, not a license to rewrite either frozen dossier.
 
-To qualify the new two-locality positive path, add a separately disclosed and independently authored **supporting locality fixture or capture** with its own provenance and expected results. If generated telemetry or declared infrastructure is used, label it as a controlled fixture, not a recorded property of the Quarkus upstream application. Prefer extending the released v0.5 Quarkus semantic vocabulary/known services for continuity, but do not substitute invented events for the pinned Quarkus source facts.
+To qualify the new two-locality positive path, I5 SHALL include **one independently captured, actual two-locality execution** of a bounded deployed reference/harness (for example two distinct caller Workloads of one logical Service in a controlled canary rollout). Freeze the deployed revision, resource/Pod UID/owner-chain capture, directly emitted OTel CLIENT evidence, capture timestamps and independently authored expected results **before** comparing with AIP. An additional generated negative-test fixture MAY be used but MUST be labelled as synthetic; neither may be described as a property of upstream Quarkus/Airflow or a production pilot. A live deployment is needed when recording this qualifying capture, **not** for an end user's later frozen replay/demo (§23). If the actual two-locality capture cannot be independently established, I5 cannot claim real-execution locality qualification; stop and seek an explicit scope/gate amendment rather than substitute hand-crafted telemetry. Prefer reusing known v0.5 semantic vocabulary for continuity, never editing the frozen upstream dossiers.
 
 Findings SHALL distinguish `CORRECT`, `MISSING_SUPPORTED`, `UNSUPPORTED`, `UNRESOLVED`, `INSUFFICIENT_EVIDENCE`, and genuine semantic defects per the governing validation methodology. No target-specific exception may be introduced solely to pass one demonstration. Re-run both targets and the supporting locality cases on the final candidate after accepted cross-system fixes.
 
 ## 23. I5 User Demonstration
 
-Extend (do not destroy) the v0.5.1 Quarkus task-led entry point with a bounded **where-is-this-dependency-established?** walkthrough. The developer first inspects the original published Quarkus answer, then a clearly separated v0.6 locality-capable fixture demonstrates what changes once admissible per-observation caller-locality evidence is available.
+Extend (do not destroy) the v0.5.1 Quarkus task-led entry point with a bounded **where-is-this-dependency-established?** walkthrough. Primary-user job story: *Before changing a Service during a canary or multi-workload rollout, identify which direct dependencies are actually established by the old and new deployed caller Workloads, rather than assuming the Service has one global dependency set.* The developer first inspects the original published Quarkus answer, then a **separately labelled replay of the independently captured two-locality reference** demonstrates what changes when per-interaction caller-locality evidence is available. Do not claim the frozen v0.5.1 Quarkus replay already provides this evidence.
 
 The walkthrough SHALL show the actual request and answer for:
 
@@ -446,16 +455,17 @@ The walkthrough SHALL show the actual request and answer for:
 2. the same Service in a second evidenced locality with a different supported dependency;
 3. one missing-locality or not-observed case that does **not** imply absence;
 4. a Service `DEPLOYED_AS` mapping which does **not** prove that every runtime `CALLS` originated at that Workload;
-5. the exact included/excluded locality selection and same-snapshot evidence drill-down.
+5. enumeration of evidenced candidate localities without caller-supplied IDs, optional included/excluded selection, explicit inventory/enumeration coverage and same-snapshot evidence drill-down.
 
 This is a deterministic, LLM-optional AIP demonstration. An optional real agent conversation illustrates consumption but is not itself qualification evidence. AIP output, source dossier, operator-authored fixture, and agent interpretation SHALL remain separately labelled. Keep setup/teardown simple and do not require a live Kubernetes cluster, Kafka broker, Quarkus build, extra agent harness or model key merely to reproduce the release capability.
 
 ## 24. Product Pilot Decision Gate
 
-A release capability is not product-validated solely because semantic tests pass. Before a bounded pilot, freeze representative service-change tasks, expected answers and success/stop thresholds for the initial target user (platform/architecture teams enabling coding agents), comparing with and without AIP under comparable source access. Measure together:
+A release capability is not product-validated solely because semantic tests pass. Before a bounded pilot, the **pilot owner SHALL choose and freeze** representative service-change tasks, independently expected answers and **numeric or categorical success/stop thresholds before any pilot results are inspected**; this parent spec prescribes no values. Compare with and without AIP under comparable source access for the initial target user (platform/architecture teams enabling coding agents). Include the canary/multi-workload job story from §23. Measure together:
 
 ```text
 time/engineering effort to establish the correct scoped dependency context
+time to distinguish local deviation from system-wide deviation
 useful supported-answer coverage and justified abstention
 false local/global assumptions and misleading absence claims caught
 setup, capture, source maintenance, mapping and clarification effort
@@ -463,11 +473,11 @@ agent/reviewer ability to preserve scope and evidence in follow-up questions
 independently detectable post-change differences versus false alarms
 ```
 
-If the pilot runs, record `CONTINUE`, `NARROW`, `DEFER`, or `STOP` with reasons. If it has not run by the capability-release decision, record `NOT_RUN` and do not claim that customer outcomes or stable-contract product-value gates have passed. Do not invent numerical success thresholds. A failed gate requires an explicit product/scope disposition and, where material, a roadmap update. Narrowing the accepted contract is preferable to adding an unqualified source or claiming global completeness. Pilot success is a gate to accepting affected capabilities into the later stable contract, not a substitute for v0.6 technical release qualification.
+If the pilot runs, record `CONTINUE`, `NARROW`, `DEFER`, or `STOP` with measured outcomes and reasons against the **pre-frozen owner-defined thresholds**. If it has not run by the v0.6 technical release decision, record `NOT_RUN`, identify the owner/follow-up validation and explicitly carry the unsatisfied product-value gate into the **v1.0-rc stable-contract admission ledger**: no claim of demonstrated customer outcome or stable-contract readiness for affected capabilities is permitted until a later pilot reaches an accepted disposition. Do not re-label the I5 technical captured run or the demonstration as a product pilot. A failed gate requires an explicit product/scope disposition and, where material, a roadmap update; `NARROW`/`DEFER`/`STOP` dispositions must be applied before freezing affected capabilities. Technical release qualification and product-value validation are distinct; this parent prescribes no arbitrary numerical thresholds.
 
 ## 25. I4/I5 Exit Evidence
 
-Completion records SHALL cite exact pinned source/fixture revisions, expected facts authored independently, qualification command/results for both clean runs, public schema parity, real-system results, unresolved/unsupported cases, evidence-lineage checks, product-pilot status and disposition if conducted, and any documented scope amendment. A dossier claim unsupported by the source is not repaired by an attractive demo narrative.
+Completion records SHALL cite exact pinned upstream dossiers and independently captured two-locality run, source/evidence revisions, expected facts authored independently, qualification command/results for both clean runs, public schema parity, real-system results, enumerated scope/coverage, unresolved/unsupported cases, legacy-v1 migration/retention-cost findings, evidence-lineage checks, pilot thresholds/status/disposition and v1.0-rc carry-forward if NOT_RUN, and any documented scope amendment. A dossier claim unsupported by the source is not repaired by an attractive demo narrative.
 
 ---
 
@@ -508,43 +518,45 @@ The exact files/commands and whether an RC tag is warranted are I6 decisions; v0
 
 ## 30. Required Documentation and Evidence
 
-Publish an I1 support matrix (dimension × source/mapping × claim kind); distinction between source, caller and target locality; assessment/projection semantics; reasoned limitations and completeness; REST/MCP request/response examples and schemas; non-observation and temporal compatibility examples; demo setup; deterministic evaluation; real-system findings; version/migration guidance; candidate and publication records. Explain the difference between *supported in selected localities* and *universally true*, and between operator-authored fixtures and independently observed production behavior.
+Publish an I1 support matrix (dimension × source/mapping × claim kind), expressly identifying the narrowed v0.6 slice versus wider ROADMAP candidates; distinction between source, caller and target locality; v1/v2 observed-evidence migration/replay and UTC-day resolution; evidence-cardinality/ADR 0012 disposition; assessment/projection semantics; evidenced-locality enumeration, reasoned limitations and completeness; REST/MCP request/response examples and schemas; non-observation and temporal compatibility examples; demo setup; deterministic evaluation; real-system findings; version/migration guidance; candidate and publication records. Explain the difference between *supported in selected localities* and *universally true*, and between operator-authored fixtures and independently observed production behavior.
 
 ## 31. Release-Level Definition of Done
 
-A user can answer **“Where is this dependency established, and how do supported results differ between these selected localities?”** over one stable snapshot, with independently justified local assessments, explicit locality evidence/qualification, deterministic projection, exclusions/coverage, same-snapshot provenance, and correct refusal where the evidence does not support an answer. The new question works through real REST and negotiated MCP clients, is independently qualified twice from clean state, survives v0.5 regression, and is understandable in a task-led demonstration. Final release claims follow only from the terminal I6 outcome.
+A user can answer **“Where is this dependency established?” without supplying locality identities first, and “How do supported results differ between selected evidenced localities?”** over one stable snapshot, with independently justified local assessments, explicit locality evidence/qualification, deterministic projection, exclusions/coverage, same-snapshot provenance, and correct refusal where the evidence does not support an answer. The new question works through real REST and negotiated MCP clients, is independently qualified twice from clean state, survives v0.5 regression, and is understandable in a task-led demonstration. Final release claims follow only from the terminal I6 outcome.
 
 Permitted capability claim upon qualification:
 
-> **AIP v0.6.0 establishes supported direct architectural relationships within explicit evidenced localities and observation contexts, and deterministically compares selected qualified local Current-State results without inventing global truths, negative dependencies, intent or causal flows.**
+> **AIP v0.6.0 discovers bounded evidenced caller localities, establishes supported direct HTTP `CALLS` within their admitted UTC-day observation contexts, and deterministically compares qualified local Current-State results without inventing global truths, negative dependencies, intent or causal flows. The initial locality-qualified relation/dimension surface is explicitly narrower than the full roadmap candidates.**
 
 ## 32. Relationship to Later Releases
 
 `v0.6.0` produces **Current State only**. `v0.7` may subsequently represent independently attributable Architectural Intent Statements and their authority/lifecycle/scope/effective-time applicability. `v0.8` may then assess Current State against independently applicable Intended Architecture. Neither future path can retroactively become an input into v0.6 Current-State qualification. Historical trajectories, transformation reasoning and distributed local-assessor deployment remain beyond v1.0 unless a later authorized roadmap decision changes that boundary.
 
-## 33. Draft 0.1 Decision Register
+## 33. Draft 0.2 Decision Register
 
 The following choices must be frozen in reviewed increment specifications **before** writing corresponding implementation and independent truth fixtures; their constraints are already fixed above.
 
 | Owner | Decision to freeze | Constraint already fixed by this parent |
 |---|---|---|
-| I1 | Actual `LocalityScope` representation, permitted values/combinations, exact dimension-support/rejection taxonomy; whether region or service version can be positively admitted | Minimum environment/window plus exact evidenced cluster/namespace/Workload slice; missing/unsupported is never wildcard; source/subject/target/claim scopes stay distinct. |
-| I1/I2 | Exact attribution rules for OTel HTTP caller observation to Pod/Workload; treatment of capture timestamps and partial scope intersections | No locality from Service-level `DEPLOYED_AS` alone; preserve v0.5 identity and temporal guards. |
+| I1 | Actual `LocalityScope` representation, supported keys/combinations and rejection taxonomy; UTC-day window bound normalization | Minimum environment/full UTC-day window plus evidenced cluster/namespace/Workload; region/tenant/version-locality and messaging outside the minimum slice; missing/unsupported is never wildcard; source/caller/target/claim scopes stay distinct. |
+| I1/I2 | Exact ingestion-time CLIENT Resource/Pod attribution (including cross-batch), v2 scoped observed-evidence ID/key/schema, scoped persistence and evidence reachability, v1/v2 coexistence, no-double-counting replay/migration and ADR 0012 cardinality budget | A distinct interaction-preserving v2 path is mandatory; legacy v1 daily aggregates and independent runtime identity observations cannot be rejoined/backfilled into scoped calls; no locality from `DEPLOYED_AS` alone. |
+| I1/I2 | Captured-resource time/owner compatibility, exact full UTC-day window bounds and refusal vocabulary for finer requests | No event-time or full-window inference from existing day-bucket summaries; preserve v0.5 matching unchanged. |
+| I1/I2 | Source/matching conformance for shared Service-scoped declaration and local observed call; local coverage inputs | The parent freezes `CONFIRMED` when source/Service declaration and independently observed scoped call exactly match; declaration-only is not positive Workload-local; no global coverage as local coverage. |
 | I2 | Stable scoped assertion identity versus versioned local assessment identity; internal read/persist choice and qualification/lineage representation | Deterministic, provenance-linked local assessment; no independent qualification fork, Intent or convenience graph writes. |
-| I3 | Public relation-locality route/tool versus equivalent compatible extension; request bounds, optional filters, response field names, schema-version migration | One deterministic question-specific comparison on a single snapshot through service, REST and negotiated MCP; no agent-assembled truth or generic graph tool. |
-| I3 | Exact completeness and included/excluded scope fields, scoped limitations and canonical order | Completeness relative to evaluated selected evidence only; no silent exclusion, universal claim or absent-dependency inference. |
+| I3 | Public relation-locality route/tool versus equivalent compatible extension; enumerated-evidence inventory/bounds and deterministic continuation/refusal, optional exact locality selection, response names/schema-version migration | Mandatory bounded evidenced-locality enumeration without supplying locality IDs, plus optional same-snapshot comparison via service, REST and negotiated MCP; no agent-assembled truth or generic graph tool. |
+| I3 | Exact completeness, enumeration inventory/coverage, included/excluded/unknown scope fields, scoped limitations and canonical order | Completeness relative to evaluated inventory/enumeration only, with visible bounds/truncation; no silent exclusion, universal claim or absent-dependency inference. |
 | I4 | Independent truth tables, support/coverage thresholds, ordering and normalized two-run comparison artifacts | False supported scope, context loss, snapshot mismatch and cross-surface semantic disagreement are blockers. |
-| I5 | Pins and authorship of supporting two-locality input/capture, real-system qualification scope, frozen product pilot metrics/thresholds | Frozen upstream dossiers unchanged; controlled fixture identified as such; both existing real systems revalidated. |
+| I5 | Pin/independent authorship of actual controlled two-locality deployment/capture and expected results; pilot-owner pre-frozen thresholds and status | Frozen upstream dossiers unchanged; real capture distinguished from generated test data and production pilot; both existing systems revalidated; NOT_RUN carries as unmet stable-contract gate. |
 | I6 | Candidate evidence filenames, RC use (if any), actual publication/verification commands and owner decision record | Exact candidate/digest identity, security disposition and distinct unpublished/published terminal outcomes. |
 
-## 34. Draft 0.1 Acceptance Criterion
+## 34. Draft 0.2 Acceptance Criterion
 
 This draft is ready to split into increment specifications only after review confirms that:
 
-1. it adds a materially new **locality-aware architecture question**, rather than repackaging deployment resolution or source inventory;
-2. one exact per-observation locality attribution is demanded for the first positive `CALLS` slice; source-scoped declarations and configured deployment mapping cannot masquerade as observed workload-local interactions;
+1. it adds a materially new **locality-aware architecture question**, including bounded evidenced-locality enumeration, rather than repackaging deployment resolution or requiring the caller to supply known localities;
+2. a distinct versioned ingestion-time per-interaction v2 caller identity and conservative v1 migration are required for the positive `CALLS` slice; source-scoped declarations and configured deployment mapping cannot masquerade as observed workload-local interactions;
 3. supported local claims can coexist, while unknown/unsupported/partial scopes never imply universal truth or local absence;
 4. local assessments and projections preserve existing qualification, source applicability, snapshot, derivation and evidence-reference rules and remain Intent-independent;
 5. REST/MCP exposure is bounded, deterministic and owned by one semantic service, with explicit public versioning and a decision on the proposed fourth tool;
-6. independent tests and a disclosed supporting locality fixture can prove the new capability without rewriting the v0.5 Quarkus/Airflow source truth; and
-7. completion measures a working user question and product value, not just a new internal data type or additional release ceremony.
+6. independent tests and a disclosed **actual two-locality capture** can prove the new capability without rewriting the frozen v0.5 Quarkus/Airflow source truth; and
+7. completion delivers a runnable user-job demonstration and records product-value measurements or an explicit `NOT_RUN`/v1.0-rc carry-forward, never misreporting a technical release as a passed product pilot or stable-contract gate.
