@@ -1,6 +1,6 @@
 # AIP v0.6.0 I1 — Locality and Evidence Applicability Contract
 
-**Status:** Draft 0.2 — terminology clarification; proposed increment specification, not yet accepted or authorized for implementation  
+**Status:** Draft 0.3 — post-review canary identity, Operation roll-up, diagnostic mapping, temporal guards and exit-gate traceability; proposed increment specification, not yet accepted or authorized for implementation  
 **Release:** `v0.6.0` — Locality-Aware Current State  
 **Increment:** I1  
 **Proposed repository path:** `docs/specifications/0.6.0/i1-locality-and-evidence-applicability.md`  
@@ -42,15 +42,19 @@ In this specification, **v1** and **v2** mean *generations of observed relations
 | **v1 — existing, unscoped observed evidence** | A daily Service-level evidence bucket that AIP already produces for an accepted relationship, including `CALLS`. | Its key identifies environment, UTC day, canonical subject Service, relation type and target entity. The individual caller Pod UID is **not** in this evidence identity; its relation cannot retrospectively be assigned to a Workload by joining independent same-Service Pod observations. |
 | **v2 — proposed caller-scoped observed evidence** | An additional, separately isolated daily evidence representation for an accepted HTTP `CALLS` when its *original CLIENT interaction* carries admissible caller identity. | The proposed key also distinguishes CLIENT `k8s.cluster.uid` and `k8s.pod.uid` (§7). It establishes the original **Pod** attribution; a positive **Workload** locality still requires time-compatible captured Pod/owner-chain resolution in the selected snapshot (§9). |
 
-Concrete example, for one UTC day and one environment:
+Concrete example, for one UTC day and one environment (actual canonical `CALLS` targets are **Operations**, not provider Services):
 
 ```text
-OrderService / Workload W1 / caller Pod P1  --CALLS--> PricingService
-OrderService / Workload W2 / caller Pod P2  --CALLS--> PricingService
+OrderService / distinct Deployment W1 / caller Pod P1
+    --CALLS--> Operation pricing:GET /prices     (owned by PricingService)
+OrderService / distinct Deployment W2 / caller Pod P2
+    --CALLS--> Operation pricing:GET /prices     (owned by PricingService)
 
-v1: one Service-level OrderService CALLS PricingService evidence bucket
-v2: two distinct scoped buckets, one for CLIENT Pod P1 and one for CLIENT Pod P2
+v1: one Service-level OrderService CALLS Operation(pricing:GET /prices) daily bucket
+v2: two scoped buckets for that same Operation, one for CLIENT P1 and one for CLIENT P2
 ```
+
+Two Pod-level v2 buckets do **not** necessarily mean two Workload localities: if P1 and P2 belong to two ReplicaSets of the *same* Deployment, the v0.5 owner chain resolves both to one Workload. The positive two-locality capture (§12) must instead use **two distinct Deployment objects**. The logical provider Service shown in parentheses is derived from the canonical Operation owner for the later dependency projection (§5.1); it is **not** proof of the provider's target runtime locality.
 
 **Coexistence, not replacement:** every newly accepted interaction continues to contribute according to existing v1 semantics. If its original CLIENT identity satisfies the scoped rules, it *also* contributes to one isolated v2 bucket. These are two representations of the **same interaction**, not two observed calls: v2 MUST NOT be counted again in existing v0.5 relation qualification, coverage, observation counts or legacy evidence arrays. Historical v1-only aggregates remain valid *unscoped* evidence; Pod attribution cannot be reconstructed from them without independently replayable original per-interaction input (§7.2). I1 freezes this contract; I2 implements it.
 
@@ -86,7 +90,7 @@ The contract SHALL distinguish even coincident values:
 | `RequestedScope` | Question, explicit observation context and optional later I3 locality selection | Request is not evidence. |
 | `SourceCaptureScope` | Source instance/revision, admitted resource inventory, evidence mode and `capturedAt` | Capture is not timeless presence. |
 | `CallerRuntimeScope` | CLIENT Resource attached to the *individual* accepted CALLS candidate | Requires exact event association. |
-| `TargetRuntimeScope` | Independently evidenced target placement, if known | Never copied from the caller or Operation owner. |
+| `TargetRuntimeScope` | Independently evidenced target **runtime placement**, if known | Never copied from the caller or logical Operation owner. The Operation's canonical provider Service may identify the logical dependency target, not where that provider ran. |
 | `ClaimApplicabilityScope` | Scope under which that precise assertion is supported | Derived no more broadly than its inputs and rule. |
 | `ProjectionSelectionScope` | Later I3 evaluated/included/excluded candidate localities | Filtering is not source evidence. |
 
@@ -118,7 +122,7 @@ Illustrative type/field freeze for review, not new public API or storage labels:
 LocalityDayContextV1:
   environment: exact_nonempty_string
   first_utc_day: ISO_DATE
-  last_utc_day: ISO_DATE              # inclusive date range
+  last_utc_day: ISO_DATE              # inclusive observation-day range; NOT an Intent effective interval
   requested_dimensions: typed_map     # admitted dimensions only
   selected_snapshot_ref: opaque_ref
 
@@ -147,7 +151,7 @@ ResolvedCallerLocalityV1:
   reasons: sorted_distinct_reason_codes
 ```
 
-Caller attribution is retained independently of the **query-time** Pod-to-Workload resolution; neither target locality nor a resolved Workload is added to the observed event's immutable key.
+Caller attribution is retained independently of the **query-time** Pod-to-Workload resolution; neither target locality nor a resolved Workload is added to the observed event's immutable key. `LocalityDayContextV1` denotes an **observed Current-State evidence window**. A future v0.7 Intent effective interval is a *different type and semantic timeline*, cannot substitute for `first_utc_day/last_utc_day`, and does not participate in Current-State qualification. I1 must preserve that distinction in typed normalization, examples and the exit evidence.
 
 ## 5. Evidence applicability and qualification boundary
 
@@ -168,6 +172,14 @@ I1 freezes the following minimum claim-kind × source matrix; other kinds need s
 **Declared evidence:** an accepted matching Service/Operation declaration may contribute *as source/Service-scoped evidence* to an independently observed scoped CALLS. Shared v0.5 qualification then yields `CONFIRMED` for both or `OBSERVED_ONLY` for local observation alone. The declaration is not Workload-authored/exclusive. Declared-only Service relation does not establish positive Workload-local CALLS.
 
 **No Workload-level coverage:** no admitted minimum v0.6 input independently establishes it. Therefore local `NOT_OBSERVED_IN_WINDOW` is **unreachable and forbidden**; a missing eligible local event must be reported as *not established from available local evidence*, with unknown/insufficient local coverage, never as absence. Unscoped v0.5 qualification and coverage remain unchanged.
+
+### 5.1 Operation-granular qualification and later Service dependency projection
+
+AIP's canonical observed relation is `caller Service --CALLS--> provider Operation`; the v2 `object_id` remains the **Operation ID**. The parent asks a user-facing Service dependency question, but that is a **derived projection**, not a different observed fact or a claim that the target Service was placed in the caller's locality.
+
+I1 freezes these constraints for I3's public roll-up: qualify each eligible local `CALLS` against its exact canonical Operation and source/Service-level declaration through the existing qualification owner; resolve the Operation's **unique canonical owning provider Service** using accepted source/identity state, never its display name or an inferred deployed target; group supported positive Operation assessments by *(caller Service, resolved caller Workload locality, provider Service, selected observation context/snapshot)*. Deduplicate and sort the **union of those qualifying per-Operation evidence and claim references** with Operation-level status/provenance retained. No provider Service dependency is minted when Operation ownership is missing/ambiguous, no `CONFIRMED` is inferred by pooling declared evidence from one Operation with observed evidence from a different Operation, and no global/absent/exclusive or target-runtime-locality claim is derived from that group.
+
+**I3 SHALL freeze** the exact Service-level response shape, bounded Operation membership/evidence union, canonical ordering, group-level qualification presentation and incomplete/ambiguous-owner disposition in its reviewed public projection specification. I1 does not introduce a second aggregation-status algorithm. Add distinct-Operation/same-provider and missing-owner scenarios to I3's acceptance matrix; the present I1 examples refer to Operations explicitly.
 
 ## 6. Ingestion-time HTTP CALLS attribution contract
 
@@ -191,7 +203,9 @@ The transient cross-batch carrier must preserve the actual CLIENT's environment,
 
 ### 6.2 Exact acceptance guards
 
-A v2 candidate requires: (1) exact canonical subject/Operation IDs of the accepted v1 CALLS; (2) nonempty CLIENT `deployment.environment.name`, `k8s.pod.uid`, `k8s.cluster.uid`; (3) exact CLIENT environment equality with the accepted fact environment, no alias/case-fold/wildcard; (4) accepted fact and CLIENT event timestamps both valid UTC instants in the **same UTC day bucket**; and (5) bounded consistency attributes without known contradiction. Paired calls crossing midnight may retain their original v1 meaning, but must not be forced into a fictitious same-day v2 bucket without a separately accepted rule. Do not store raw span data or arbitrary Resource fields.
+**Ingestion-time guards** can inspect only the accepted v0.5 CALLS and the **same original CLIENT** Resource/carrier: (1) exact canonical subject/Operation IDs of the accepted v1 CALLS; (2) nonempty CLIENT `deployment.environment.name`, `k8s.pod.uid`, `k8s.cluster.uid`; (3) exact CLIENT environment equality with the accepted fact environment, no alias/case-fold/wildcard; (4) accepted fact and CLIENT event timestamps both valid UTC instants in the **same UTC day bucket**; and (5) bounded CLIENT-internal consistency of values actually present in that Resource/carrier. Only an actual contradiction known from these inputs can refuse scoped-v2 creation. Paired calls crossing midnight may retain their original v1 meaning, but must not be forced into a fictitious same-day v2 bucket without a separately accepted rule. Do not store raw span data or arbitrary Resource fields.
+
+**Query-time guards** require the selected CAPTURED_RESOURCE snapshot: exact captured cluster/Pod UID, namespace, owner chain, supported Workload and `capturedAt`. They compare any optional CLIENT Pod/namespace/Workload-name consistency fields against the *captured* values. An incompatibility learned only at query time (for example `LOCALITY_NAMESPACE_CONFLICT` or cluster/owner mismatch) produces a scoped assessment limitation; it MUST NOT suppress, rewrite or delete the original valid v2 Pod-bound evidence. The ingestion path cannot check an as-yet-unselected captured namespace/owner and must not guess it from a same-Service Pod observation.
 
 I1 conformance must cover paired/in-batch, CLIENT-first and SERVER-first cross-batch, qualified CLIENT_ONLY and SERVER_ONLY, missing caller UID, contradictory environment, cross-day facts, conflicting cluster UID and name-only attribution. I2 implements the actual propagation.
 
@@ -239,7 +253,9 @@ internal end   = (last_day + 1 day) at 00:00:00.000000 UTC - 1 microsecond
 
 This proposal retains the existing shared v0.5 **inclusive** timestamp predicate while excluding an event occurring precisely at the following day's midnight from the selected complete days. I1 freezes the timestamp precision, UTC parser, leap/day-range validation, canonical serialization and midnight boundary with golden examples. I3 may choose a date-oriented public representation but may not change the semantics. Existing v0.5 date-time request/window behaviour is untouched.
 
-The CLIENT's original timestamp and accepted CALLS fact timestamp must each be attributable to the same v2 UTC day. Path C-style temporal applicability requires actual retained event/observation timestamps and the captured Pod's actual `capturedAt` within the selected context; an entire evidence bucket is not treated as one continuously observed Pod. No nearby timestamp, arbitrary skew allowance, implicit timezone, missing `capturedAt` substitution or unverified source-clock repair is admitted.
+The CLIENT's original timestamp and accepted CALLS fact timestamp must each be attributable to the same v2 UTC day. For **query-time** capture compatibility, reuse Path C's exact inclusive predicate (currently `app/architecture_intelligence/deployment_projection.py::_observation_context_limitation`): `window_start <= observed.last_seen <= window_end` and `window_start <= capturedAt <= window_end`, after exact environment matching. The `observed.last_seen` input for this scoped check is **the selected v2 bucket's own `last_seen`**, not the separate Service-level `RuntimeIdentityObservation.last_seen` or the v1 aggregate's `last_seen`. The `capturedAt` is the real timestamp of the matching selected Pod's captured envelope. The bounds are the complete-UTC-day normalized bounds defined above. An entire bucket is not continuous Pod-presence evidence. No nearby timestamp, arbitrary skew allowance, implicit timezone, missing `capturedAt` substitution or unverified source-clock repair is admitted.
+
+Example: v2 `last_seen` on day D with a Pod captured on D+1 and a request selecting only D **cannot** establish a positive D locality: the capture is known temporally inapplicable (`INAPPLICABLE`, `LOCALITY_CAPTURE_TEMPORAL_MISMATCH`). Missing `capturedAt` instead gives insufficient evidence (`LOCALITY_CAPTURE_TIMESTAMP_MISSING`). This scoped rule leaves the v0.5 Path C input/predicate and existing v0.5 query semantics unchanged.
 
 Sub-day/partial-day requests, cross-day forced bucket matches and a later coarsened retention bucket whose original day membership cannot be proved yield an explicit unsupported/insufficient temporal-resolution result. They must not silently widen the scope or assert local `NOT_OBSERVED_IN_WINDOW`. ADR 0012 is still Proposed and is not enacted by this contract.
 
@@ -256,9 +272,9 @@ scoped v2 CALLS (caller cluster UID, caller Pod UID)
     -> caller Workload-local applicability only
 ```
 
-A positive scoped Workload claim requires the correct evidence mode, accepted source inventory/revision, real compatible `capturedAt`, exact cluster UID and Pod UID, supported owner chain, consistent present optional Resource attributes, and no same-snapshot owner conflict. `DECLARED_MANIFEST`, label selection, name-only Pod matching, co-location, nearest timestamp and generic Service-level `DEPLOYED_AS` are insufficient. The target locality is independently unknown unless separately evidenced.
+A positive scoped Workload claim requires the correct evidence mode, accepted source inventory/revision, the **§8 exact v2-last_seen and capturedAt predicates**, exact cluster UID and Pod UID, supported owner chain, consistent present optional Resource attributes checked **at query time** against the selected capture, and no same-snapshot owner conflict. `DECLARED_MANIFEST`, label selection, name-only Pod matching, co-location, nearest timestamp and generic Service-level `DEPLOYED_AS` are insufficient. The target locality is independently unknown unless separately evidenced.
 
-**Capture replacement:** If an authoritative later selected capture no longer includes the observed Pod/valid chain, the original event remains attributable to its original Pod in v2, but its Workload locality becomes `UNRESOLVED`. It is not absent, deleted, automatically historical, reattached to the replacement Pod, or inferred to have occurred at every current Workload. If two current owner paths conflict, preserve Path C conflict/ambiguity semantics; do not choose the latest/friendliest. Source/capture revision and timestamp belong in the assessment lineage, and a changed selected capture must be reflected in its current result/snapshot.
+**Capture replacement:** If an authoritative later selected capture no longer includes the observed Pod/valid chain, the original event remains attributable to its original Pod in v2, but its Workload locality becomes `UNRESOLVED`. It is not absent, deleted, automatically historical, reattached to the replacement Pod, or inferred to have occurred at every current Workload. If two current owner paths disagree, retain the Path C distinction: multiple admissible candidate Workloads with no established contradictory evidence are `AMBIGUOUS`; contradictory known identity/owner evidence is `CONFLICT`. Do not choose the latest/friendliest. Source/capture revision and timestamp belong in the assessment lineage, and a changed selected capture must be reflected in its current result/snapshot.
 
 No historical snapshot store is introduced. A file kept externally after its contribution disappears from the **selected** canonical snapshot cannot by itself make yesterday's Workload resolution queryable again. This matters to the I5 canary scenario: capture during the overlap when both Pod incarnations are present and evaluate that capture before a later authoritative import drops the old Pod.
 
