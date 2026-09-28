@@ -1,10 +1,13 @@
+from collections.abc import Callable
 from datetime import UTC, datetime
+from typing import overload
 
 import neo4j
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, ConfigDict, Field
 
 from app.analysis.runtime import (
+    RelationObservation,
     confirmed_relations,
     declared_only_relations,
     default_since,
@@ -20,24 +23,31 @@ runtime_router = APIRouter(prefix="/api/runtime", tags=["runtime"])
 runtime_analysis_router = APIRouter(prefix="/api/analysis/runtime", tags=["runtime-analysis"])
 
 
+# Aliases are given as validation_alias + serialization_alias rather than alias= so that type
+# checkers see the field names as the constructor parameters (populate_by_name builds these models
+# by name); the generated OpenAPI schema and serialized output are identical either way.
+
+
 class RuntimeWindow(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
-    from_: datetime = Field(alias="from")
+    from_: datetime = Field(validation_alias="from", serialization_alias="from")
     to: datetime
 
 
 class RuntimeRelationOut(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
-    source_id: str = Field(alias="sourceId")
+    source_id: str = Field(validation_alias="sourceId", serialization_alias="sourceId")
     source: str
     relation: str
-    target_id: str = Field(alias="targetId")
+    target_id: str = Field(validation_alias="targetId", serialization_alias="targetId")
     target: str
     environment: str
     status: str
-    first_seen: datetime = Field(alias="firstSeen")
-    last_seen: datetime = Field(alias="lastSeen")
-    observation_count: int = Field(alias="observationCount")
+    first_seen: datetime = Field(validation_alias="firstSeen", serialization_alias="firstSeen")
+    last_seen: datetime = Field(validation_alias="lastSeen", serialization_alias="lastSeen")
+    observation_count: int = Field(
+        validation_alias="observationCount", serialization_alias="observationCount"
+    )
 
 
 class RuntimeRelationListOut(BaseModel):
@@ -49,14 +59,17 @@ class RuntimeRelationListOut(BaseModel):
 
 class DeclaredOnlyRelationOut(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
-    source_id: str = Field(alias="sourceId")
+    source_id: str = Field(validation_alias="sourceId", serialization_alias="sourceId")
     source: str
     relation: str
-    target_id: str = Field(alias="targetId")
+    target_id: str = Field(validation_alias="targetId", serialization_alias="targetId")
     target: str
     environment: str
     status: str
-    telemetry_coverage_available: bool = Field(alias="telemetryCoverageAvailable")
+    telemetry_coverage_available: bool = Field(
+        validation_alias="telemetryCoverageAvailable",
+        serialization_alias="telemetryCoverageAvailable",
+    )
     coverage: str
 
 
@@ -69,12 +82,16 @@ class DeclaredOnlyListOut(BaseModel):
 
 class ServiceCoverageOut(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
-    service_id: str = Field(alias="serviceId")
+    service_id: str = Field(validation_alias="serviceId", serialization_alias="serviceId")
     service: str
     environment: str
-    http_observed: bool = Field(alias="httpObserved")
-    messaging_observed: bool = Field(alias="messagingObserved")
-    spans_observed: bool = Field(alias="spansObserved")
+    http_observed: bool = Field(validation_alias="httpObserved", serialization_alias="httpObserved")
+    messaging_observed: bool = Field(
+        validation_alias="messagingObserved", serialization_alias="messagingObserved"
+    )
+    spans_observed: bool = Field(
+        validation_alias="spansObserved", serialization_alias="spansObserved"
+    )
 
 
 class CoverageListOut(BaseModel):
@@ -87,19 +104,26 @@ class CoverageListOut(BaseModel):
 class ServiceRuntimeRelationOut(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
     relation: str
-    target_id: str = Field(alias="targetId")
+    target_id: str = Field(validation_alias="targetId", serialization_alias="targetId")
     target: str
     status: str
-    first_seen: datetime | None = Field(alias="firstSeen")
-    last_seen: datetime | None = Field(alias="lastSeen")
-    observation_count: int | None = Field(alias="observationCount")
-    telemetry_coverage_available: bool | None = Field(alias="telemetryCoverageAvailable")
+    first_seen: datetime | None = Field(
+        validation_alias="firstSeen", serialization_alias="firstSeen"
+    )
+    last_seen: datetime | None = Field(validation_alias="lastSeen", serialization_alias="lastSeen")
+    observation_count: int | None = Field(
+        validation_alias="observationCount", serialization_alias="observationCount"
+    )
+    telemetry_coverage_available: bool | None = Field(
+        validation_alias="telemetryCoverageAvailable",
+        serialization_alias="telemetryCoverageAvailable",
+    )
     coverage: str | None
 
 
 class ServiceRuntimeProfileOut(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
-    service_id: str = Field(alias="serviceId")
+    service_id: str = Field(validation_alias="serviceId", serialization_alias="serviceId")
     service: str
     environment: str
     window: RuntimeWindow
@@ -115,12 +139,17 @@ def _resolve_window(
     return resolved_since, resolved_until
 
 
+@overload
+def _native(value: datetime) -> datetime: ...
+@overload
+def _native(value: datetime | None) -> datetime | None: ...
 def _native(value: datetime | None) -> datetime | None:
     """Neo4j returns temporal properties as neo4j.time.DateTime, not datetime.datetime - Pydantic
     rejects it outright when serializing (same gotcha aggregator.py's own .to_native() fix
     addresses on the read side); RelationObservation/DeclaredOnlyRelation are plain dataclasses so
     they never hit this, but the Pydantic response models here do."""
-    return value.to_native() if hasattr(value, "to_native") else value
+    to_native = getattr(value, "to_native", None)
+    return to_native() if to_native is not None else value
 
 
 def _coverage_out(environment: str, c) -> ServiceCoverageOut:
@@ -231,7 +260,7 @@ def _relation_list(
     since: datetime | None,
     until: datetime | None,
     status_label: str,
-    analysis_fn,
+    analysis_fn: Callable[..., list[RelationObservation]],
 ) -> RuntimeRelationListOut:
     env = environment or settings.config.runtime_analysis.default_environment
     resolved_since, resolved_until = _resolve_window(settings, since, until)

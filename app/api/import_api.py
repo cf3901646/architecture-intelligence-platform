@@ -149,12 +149,11 @@ def import_one_service(
     report = build_import_report(import_id, run_results)
 
     with open_session(driver, database=settings.config.graph.database) as session:
-        exists = (
-            session.run("MATCH (s:Service {id: $id}) RETURN count(s) AS c", id=service_id).single()[
-                "c"
-            ]
-            > 0
-        )
+        record = session.run(
+            "MATCH (s:Service {id: $id}) RETURN count(s) AS c", id=service_id
+        ).single()
+        assert record is not None  # a count() aggregate always yields exactly one row
+        exists = record["c"] > 0
     if not exists:
         raise HTTPException(status_code=404, detail=f"no known service: {service_id}")
 
