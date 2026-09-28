@@ -94,7 +94,7 @@ The contract SHALL distinguish even coincident values:
 | `ClaimApplicabilityScope` | Scope under which that precise assertion is supported | Derived no more broadly than its inputs and rule. |
 | `ProjectionSelectionScope` | Later I3 evaluated/included/excluded candidate localities | Filtering is not source evidence. |
 
-**Proposed internal identifier:** `locality-contract/1`. This is an internal semantic-contract version, *not* the future public I3 JSON schema version.
+**Internal contract identifier to freeze in I1 artifacts:** `locality-contract/1`. This is an internal semantic-contract version, *not* the future public I3 JSON schema version.
 
 ### 4.2 Minimum positive dimensions
 
@@ -114,7 +114,7 @@ Pod UID is retained at ingestion as **attribution identity**, not itself a prove
 
 Region, tenant, version-locality and messaging-locality are **unsupported in the minimum release slice**, notwithstanding the ROADMAP's broader candidates. `service.version` does not mint a new canonical Service. Other existing v0.5 relations retain their old query semantics; only the new relation-locality surface reports unsupported locality-specific qualification.
 
-### 4.3 Proposed internal types
+### 4.3 Internal contract types
 
 Illustrative type/field freeze for review, not new public API or storage labels:
 
@@ -211,9 +211,9 @@ I1 conformance must cover paired/in-batch, CLIENT-first and SERVER-first cross-b
 
 ## 7. Deterministic scoped observed-evidence v2 identity and transition
 
-### 7.1 Proposed bucket key
+### 7.1 Scoped bucket key contract
 
-I1 proposes this **logical canonical input** for review:
+I1 fixes these **logical canonical identity inputs**, with byte-exact encoding and independent golden vectors to be frozen in its supporting artifacts:
 
 ```text
 contract_version: 2
@@ -330,7 +330,8 @@ LOCALITY_LOCAL_COVERAGE_UNAVAILABLE
 | `SERVER_ONLY` or no corresponding CLIENT identity carrier at all | `INSUFFICIENT_EVIDENCE` | `LOCALITY_SERVER_ONLY_NO_CLIENT` for SERVER_ONLY; `LOCALITY_CLIENT_IDENTITY_MISSING` for other absent carrier; v1 handling unchanged. |
 | CLIENT carrier exists, but Pod UID and/or cluster UID is missing | `INSUFFICIENT_EVIDENCE` | Specific `LOCALITY_POD_UID_MISSING` and/or `LOCALITY_CLUSTER_UID_MISSING`; **do not also** emit generic CLIENT-identity-missing. |
 | CLIENT environment is missing | `INSUFFICIENT_EVIDENCE` | `LOCALITY_CLIENT_IDENTITY_MISSING`; preserve accepted v1 semantics. |
-| CLIENT environment is present but differs from the accepted fact or requested environment | `INAPPLICABLE` | `LOCALITY_CLIENT_FACT_ENVIRONMENT_MISMATCH`; no invented v2 association. |
+| CLIENT environment is present but differs from the accepted fact environment **at ingestion** | `INAPPLICABLE` (ingestion diagnostic only) | `LOCALITY_CLIENT_FACT_ENVIRONMENT_MISMATCH`; no v2 minted; v1 unchanged (§10.2). |
+| Valid persisted v2 environment differs from exact query environment **at read time** | `INAPPLICABLE` (phase 3) | Exact environment mismatch limitation; no candidate identity/owner evaluation or widening by alias. |
 | CLIENT/fact event timestamps cannot inhabit the same UTC day | `INAPPLICABLE` | `LOCALITY_CLIENT_FACT_DAY_MISMATCH`; v1 unchanged. |
 | Two known values contradict *within the same CLIENT Resource/carrier* | `CONFLICT` | `LOCALITY_CLIENT_INTERNAL_CONFLICT`; do not store positive v2; no comparison against an as-yet-unselected capture at ingestion. |
 | Legacy v1-only evidence, no original replayable CLIENT interaction | `INSUFFICIENT_EVIDENCE` | `LOCALITY_LEGACY_V1_UNSCOPED`; never infer Pod locality. |
@@ -406,7 +407,7 @@ selected captured-resource revision during rollout overlap:
   each v2 bucket.last_seen and capturedAt match the full-UTC-day window
 ```
 
-**Do not use one Deployment rolling from ReplicaSet R1 to R2 as the two-locality positive fixture.** Both Pod owner chains would resolve to that *same* Deployment/Workload under admitted v0.5 semantics. Even when v2 emits two distinct per-Pod identities, a Workload-level projection must not count them as two Workload localities. Adding ReplicaSet-local granularity would require a separately reviewed parent-scope amendment and is not part of this I1 draft. The provider Service in parentheses above is a **logical** Operation owner for I3's dependency roll-up (§5.1), never evidence of target runtime placement.
+**Do not use one Deployment rolling from ReplicaSet R1 to R2 as the two-locality positive fixture.** Both Pod owner chains would resolve to that *same* Deployment/Workload under admitted v0.5 semantics. Even when v2 emits two distinct per-Pod identities, a Workload-level projection must not count them as two Workload localities. Adding ReplicaSet-local granularity would require a separately reviewed parent-scope amendment and is outside this accepted I1 contract. The provider Service in parentheses above is a **logical** Operation owner for I3's dependency roll-up (§5.1), never evidence of target runtime placement.
 
 The acquisition runbook must document the **two distinct Deployment identities and one canonical caller AIP Service binding**, exact canonical target Operation IDs/owners, reference deployment revision, authentic CLIENT Resource emission/collection method, cluster identity provenance, capture envelope/owner-chain extraction, `capturedAt`, environment mapping, source revisions and SHA-256 pins, independently authored expected results **before** AIP evaluation, clean offline replay and teardown. Capture the **old/new overlap before a later authoritative capture replaces either old resource**. Include a later post-promotion captured revision to test that old Pod Workload locality becomes `UNRESOLVED`, not absent or transferred.
 
@@ -416,7 +417,7 @@ Label distinctly (a) actual independently recorded controlled reference, (b) ind
 
 ## 13. Independently authored conformance matrix
 
-Before I2 implementation, I1 SHALL freeze source evidence and expected result for every row, including disposition/reason codes, accepted v1/v2 keys, captured-source context, evidence lineage and prohibited conclusions. The following scenario IDs are proposed, not yet generated test results.
+Before I2 implementation, I1 SHALL freeze source evidence and expected result for every row, including disposition/reason codes, accepted v1/v2 keys, captured-source context, evidence lineage and prohibited conclusions. The following scenario IDs specify required independently expected cases; they are not claims that tests have run.
 
 | ID | Input situation | Expected I1 outcome / forbidden claim |
 |---|---|---|
@@ -462,7 +463,7 @@ Golden ID vectors (including L01–L37) must be evaluated under input permutatio
 
 ## 14. Contract deliverables and bounded slices
 
-Proposed supporting files under `docs/specifications/0.6.0/` (I1 may consolidate documentation without losing traceability):
+Planned I1 supporting deliverables under `docs/specifications/0.6.0/` (I1 may consolidate documentation without losing traceability):
 
 ```text
 i1-locality-and-evidence-applicability.md    # this spec after review
