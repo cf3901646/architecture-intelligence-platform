@@ -1,0 +1,1516 @@
+{
+  "contract": "locality-contract/1",
+  "vector_set": "conformance-expected/1",
+  "governing": "docs/specifications/0.6.0/i1-conformance-dossier.md (I1 §13)",
+  "authored": "By hand from the accepted I1 specification and the I1.1-I1.4 deliverables, before any I2 implementation exists. No AIP output was used.",
+  "vector_refs": {
+    "v2": "i1-vectors/v2-evidence-id.json key_vectors / v1_unchanged / snapshot_fragment / no_v2_snapshot_pin",
+    "window": "i1-vectors/utc-day-window.json"
+  },
+  "fixtures": {
+    "environment": "production",
+    "D": "2026-09-28",
+    "D+1": "2026-09-29",
+    "window": "ScopedDayWindowV1(D, D) unless stated",
+    "caller": "service:orders",
+    "operations": {
+      "O1": "operation:pricing:GET:/prices (owner service:pricing)",
+      "O2": "operation:legacy-pricing:GET:/prices (owner service:legacy-pricing)",
+      "O3": "operation:pricing:GET:/prices/{id} (owner service:pricing)"
+    },
+    "clusters": {
+      "K1": "7f3c2a10-1b2d-4e5f-8a9b-0c1d2e3f4a5b",
+      "K2": "9e8d7c6b-5a49-4382-b716-a5b4c3d2e1f0"
+    },
+    "pods": {
+      "P1": "11111111-aaaa-4bbb-8ccc-000000000001",
+      "P2": "11111111-aaaa-4bbb-8ccc-000000000002"
+    },
+    "workloads": {
+      "W1": "Deployment shop/orders",
+      "W2": "Deployment shop/orders-canary"
+    },
+    "captures": {
+      "CAP-A": "CAPTURED_RESOURCE, clusterUid K1, capturedAt 2026-09-28T12:00:00Z, namespace shop; P1->ReplicaSet->W1, P2->ReplicaSet->W2",
+      "CAP-B": "as CAP-A but capturedAt 2026-09-28T18:00:00Z and P1 absent (W1 deleted)",
+      "CAP-A-D1": "as CAP-A but capturedAt 2026-09-29T12:00:00Z",
+      "CAP-A-NOTIME": "as CAP-A but capturedAt missing or without offset",
+      "CAP-DM": "DECLARED_MANIFEST contribution for namespace shop",
+      "CAP-AMB": "CAPTURED_RESOURCE, K1, day D; P1 has several admissible Workload candidates, no contradiction (Path C AMBIGUOUS)",
+      "CAP-CONF": "CAPTURED_RESOURCE, K1, day D; contradictory owner paths for P1 (Path C CONFLICT)",
+      "CAP-CONF-D1": "as CAP-CONF but capturedAt on D+1",
+      "CAP-PARTIAL": "CAPTURED_RESOURCE, K1, day D, completeness not COMPLETE; P1 absent"
+    }
+  },
+  "cases": [
+    {
+      "id": "L01",
+      "title": "Same v2 key with reordered input fields",
+      "spec_refs": [
+        "§7.1"
+      ],
+      "variants": [
+        {
+          "id": "a",
+          "inputs": "V02 fields = V01 fields in reverse order",
+          "expected": {
+            "v2_ids": [
+              "V01-base",
+              "V02-reordered-input"
+            ],
+            "v2_ids_equal": true
+          }
+        }
+      ],
+      "prohibited": [
+        "field order changes identity"
+      ]
+    },
+    {
+      "id": "L02",
+      "title": "One caller Service, relation and Operation on one day from two Pod UIDs",
+      "spec_refs": [
+        "§7.1",
+        "§7.2"
+      ],
+      "variants": [
+        {
+          "id": "a",
+          "inputs": "P1 and P2 each call O1 on day D in environment E, cluster K1",
+          "expected": {
+            "v2_ids": [
+              "V01-base",
+              "V03-distinct-pod"
+            ],
+            "v2_ids_equal": false,
+            "v1_ids": [
+              "U01-v1-for-V01-and-V03"
+            ]
+          }
+        }
+      ],
+      "prohibited": [
+        "two v1 buckets",
+        "a second Workload locality inferred from two Pod keys alone"
+      ]
+    },
+    {
+      "id": "L03",
+      "title": "Same Pod UID text in two cluster UIDs",
+      "spec_refs": [
+        "§7.1"
+      ],
+      "variants": [
+        {
+          "id": "a",
+          "inputs": "P1 UID in K1 and in K2",
+          "expected": {
+            "v2_ids": [
+              "V01-base",
+              "V04-same-pod-uid-other-cluster"
+            ],
+            "v2_ids_equal": false
+          }
+        }
+      ],
+      "prohibited": [
+        "cross-cluster alias of Pod identity"
+      ]
+    },
+    {
+      "id": "L04",
+      "title": "Two distinct Deployments behind one caller Service, each Pod calling a different Operation",
+      "spec_refs": [
+        "§2.1",
+        "§5.1",
+        "§12"
+      ],
+      "variants": [
+        {
+          "id": "a",
+          "inputs": "CAP-A selected; V01 (P1 to O1), V06 (P2 to O2)",
+          "expected": {
+            "v1_ids": [
+              "U01-v1-for-V01-and-V03",
+              "U02-v1-for-V06"
+            ],
+            "query": [
+              {
+                "candidate": "V01-base",
+                "selected_capture": "CAP-A",
+                "phase": 4,
+                "disposition": "APPLICABLE",
+                "reasons": [],
+                "workload": "W1"
+              },
+              {
+                "candidate": "V06-other-operation",
+                "selected_capture": "CAP-A",
+                "phase": 4,
+                "disposition": "APPLICABLE",
+                "reasons": [],
+                "workload": "W2"
+              }
+            ],
+            "provider_services": {
+              "O1": "service:pricing",
+              "O2": "service:legacy-pricing"
+            },
+            "target_runtime_locality": "unknown"
+          }
+        }
+      ],
+      "prohibited": [
+        "target placement of pricing or legacy-pricing",
+        "W1 calls O2 or W2 calls O1",
+        "exclusive or global dependency",
+        "provider Service inferred from placement"
+      ]
+    },
+    {
+      "id": "L05",
+      "title": "Existing v1-only CALLS plus a separately persisted same-Service Pod identity",
+      "spec_refs": [
+        "§7.2",
+        "§10.2"
+      ],
+      "variants": [
+        {
+          "id": "a",
+          "inputs": "v1 U01 only; RuntimeIdentityObservation for service:orders/P1 on D; legacy-only status not independently known",
+          "expected": {
+            "answer": {
+              "disposition": "INSUFFICIENT_EVIDENCE",
+              "reasons": [
+                "LOCALITY_LOCAL_COVERAGE_UNAVAILABLE",
+                "LOCALITY_NO_ELIGIBLE_LOCAL_OBSERVATION"
+              ]
+            }
+          }
+        },
+        {
+          "id": "b",
+          "inputs": "as a, with the source inventory independently known to be legacy-only",
+          "expected": {
+            "answer": {
+              "disposition": "INSUFFICIENT_EVIDENCE",
+              "reasons": [
+                "LOCALITY_LEGACY_V1_UNSCOPED",
+                "LOCALITY_LOCAL_COVERAGE_UNAVAILABLE",
+                "LOCALITY_NO_ELIGIBLE_LOCAL_OBSERVATION"
+              ]
+            }
+          }
+        }
+      ],
+      "prohibited": [
+        "positive locality by joining v1 with RuntimeIdentityObservation",
+        "Pod locality backfilled into v1"
+      ]
+    },
+    {
+      "id": "L06",
+      "title": "CLIENT lacks Pod UID or cluster UID",
+      "spec_refs": [
+        "§6.2",
+        "§10.1"
+      ],
+      "variants": [
+        {
+          "id": "a",
+          "inputs": "carrier present, k8s.pod.uid missing",
+          "expected": {
+            "ingestion": {
+              "phase": "ingestion",
+              "v1": "unchanged",
+              "v2_written": false,
+              "disposition": "INSUFFICIENT_EVIDENCE",
+              "reasons": [
+                "LOCALITY_POD_UID_MISSING"
+              ]
+            }
+          }
+        },
+        {
+          "id": "b",
+          "inputs": "carrier present, k8s.cluster.uid missing",
+          "expected": {
+            "ingestion": {
+              "phase": "ingestion",
+              "v1": "unchanged",
+              "v2_written": false,
+              "disposition": "INSUFFICIENT_EVIDENCE",
+              "reasons": [
+                "LOCALITY_CLUSTER_UID_MISSING"
+              ]
+            }
+          }
+        },
+        {
+          "id": "c",
+          "inputs": "carrier present, both missing",
+          "expected": {
+            "ingestion": {
+              "phase": "ingestion",
+              "v1": "unchanged",
+              "v2_written": false,
+              "disposition": "INSUFFICIENT_EVIDENCE",
+              "reasons": [
+                "LOCALITY_CLUSTER_UID_MISSING",
+                "LOCALITY_POD_UID_MISSING"
+              ]
+            }
+          }
+        },
+        {
+          "id": "d",
+          "inputs": "read side after a-c: only U01 exists",
+          "expected": {
+            "answer": {
+              "disposition": "INSUFFICIENT_EVIDENCE",
+              "reasons": [
+                "LOCALITY_LOCAL_COVERAGE_UNAVAILABLE",
+                "LOCALITY_NO_ELIGIBLE_LOCAL_OBSERVATION"
+              ]
+            }
+          }
+        }
+      ],
+      "prohibited": [
+        "LOCALITY_CLIENT_IDENTITY_MISSING emitted on account of a missing UID",
+        "positive locality",
+        "ingestion code in a query answer"
+      ]
+    },
+    {
+      "id": "L07",
+      "title": "Paired CLIENT/SERVER in one batch",
+      "spec_refs": [
+        "§6.1"
+      ],
+      "variants": [
+        {
+          "id": "a",
+          "inputs": "T01 timestamps; CLIENT Resource P1/K1/E",
+          "expected": {
+            "ingestion": {
+              "phase": "ingestion",
+              "v1": "unchanged",
+              "v2_written": true,
+              "disposition": "APPLICABLE",
+              "reasons": []
+            },
+            "v2_ids": [
+              "V01-base"
+            ],
+            "v2_first_last_seen": "fact (SERVER) timestamp, vector T01"
+          }
+        }
+      ],
+      "prohibited": [
+        "route, method or fact time taken from the CLIENT",
+        "caller identity from the SERVER Resource"
+      ]
+    },
+    {
+      "id": "L08",
+      "title": "Cross-batch pairs, CLIENT first and SERVER first",
+      "spec_refs": [
+        "§6.1"
+      ],
+      "variants": [
+        {
+          "id": "a",
+          "inputs": "CLIENT in batch 1, SERVER in batch 2",
+          "expected": {
+            "ingestion": {
+              "phase": "ingestion",
+              "v1": "unchanged",
+              "v2_written": true,
+              "disposition": "APPLICABLE",
+              "reasons": []
+            },
+            "v2_ids": [
+              "V01-base"
+            ]
+          }
+        },
+        {
+          "id": "b",
+          "inputs": "SERVER in batch 1, CLIENT in batch 2",
+          "expected": {
+            "ingestion": {
+              "phase": "ingestion",
+              "v1": "unchanged",
+              "v2_written": true,
+              "disposition": "APPLICABLE",
+              "reasons": []
+            },
+            "v2_ids": [
+              "V01-base"
+            ]
+          }
+        }
+      ],
+      "prohibited": [
+        "loss of CLIENT identity across batches",
+        "different v2 record by arrival order",
+        "unbounded or raw carrier retention"
+      ]
+    },
+    {
+      "id": "L09",
+      "title": "Qualified CLIENT_ONLY versus SERVER_ONLY",
+      "spec_refs": [
+        "§6.1",
+        "§10.1"
+      ],
+      "variants": [
+        {
+          "id": "a",
+          "inputs": "expired CLIENT becomes a v0.5 CLIENT_ONLY CALLS with its carried P1/K1/E",
+          "expected": {
+            "ingestion": {
+              "phase": "ingestion",
+              "v1": "unchanged",
+              "v2_written": true,
+              "disposition": "APPLICABLE",
+              "reasons": []
+            },
+            "v2_ids": [
+              "V01-base"
+            ],
+            "correlation_mode": "CLIENT_ONLY"
+          }
+        },
+        {
+          "id": "b",
+          "inputs": "expired SERVER (SERVER_ONLY)",
+          "expected": {
+            "ingestion": {
+              "phase": "ingestion",
+              "v1": "none",
+              "v2_written": false,
+              "disposition": "INSUFFICIENT_EVIDENCE",
+              "reasons": [
+                "LOCALITY_SERVER_ONLY_NO_CLIENT"
+              ]
+            }
+          }
+        }
+      ],
+      "prohibited": [
+        "caller v2 manufactured from a SERVER span"
+      ]
+    },
+    {
+      "id": "L10",
+      "title": "CLIENT environment differs from the accepted fact environment",
+      "spec_refs": [
+        "§6.2",
+        "§10.1"
+      ],
+      "variants": [
+        {
+          "id": "a",
+          "inputs": "CLIENT environment staging, fact environment production (ingestion)",
+          "expected": {
+            "ingestion": {
+              "phase": "ingestion",
+              "v1": "unchanged",
+              "v2_written": false,
+              "disposition": "INAPPLICABLE",
+              "reasons": [
+                "LOCALITY_CLIENT_FACT_ENVIRONMENT_MISMATCH"
+              ]
+            }
+          }
+        },
+        {
+          "id": "b",
+          "inputs": "read time: V01 (environment production) queried with environment staging",
+          "expected": {
+            "query": [
+              {
+                "candidate": "V01-base",
+                "selected_capture": "CAP-A",
+                "phase": 3,
+                "disposition": "INAPPLICABLE",
+                "reasons": [],
+                "limitation_without_code": "exact environment mismatch (I1 §10.1 names no code)"
+              }
+            ]
+          }
+        }
+      ],
+      "prohibited": [
+        "environment alias, case-fold or wildcard",
+        "owner identity evaluated after the phase 3 failure"
+      ]
+    },
+    {
+      "id": "L11",
+      "title": "CLIENT and fact timestamps on different UTC days",
+      "spec_refs": [
+        "§6.2",
+        "§8"
+      ],
+      "variants": [
+        {
+          "id": "a",
+          "inputs": "vector T02 (cross midnight)",
+          "expected": {
+            "ingestion": {
+              "phase": "ingestion",
+              "v1": "unchanged",
+              "v2_written": false,
+              "disposition": "INAPPLICABLE",
+              "reasons": [
+                "LOCALITY_CLIENT_FACT_DAY_MISMATCH"
+              ]
+            },
+            "v1_bucket_day": "2026-09-28"
+          }
+        }
+      ],
+      "prohibited": [
+        "forced same-day v2 bucket",
+        "change to the v1 path"
+      ]
+    },
+    {
+      "id": "L12",
+      "title": "One event with v1 and v2 representations",
+      "spec_refs": [
+        "§7.2"
+      ],
+      "variants": [
+        {
+          "id": "a",
+          "inputs": "one paired interaction as in L07",
+          "expected": {
+            "v1_ids": [
+              "U01-v1-for-V01-and-V03"
+            ],
+            "v2_ids": [
+              "V01-base"
+            ],
+            "v1_observation_count": 1,
+            "legacy_calls_edge_evidence_ids": [
+              "U01-v1-for-V01-and-V03"
+            ],
+            "snapshot_evidence_array_contains_v2": false
+          }
+        }
+      ],
+      "prohibited": [
+        "v2 id in the legacy edge evidence_ids",
+        "v0.5 count, coverage or qualification doubled"
+      ]
+    },
+    {
+      "id": "L13",
+      "title": "No v2 in the unchanged golden-path graph",
+      "spec_refs": [
+        "§11.1"
+      ],
+      "variants": [
+        {
+          "id": "a",
+          "inputs": "golden-path demo state, no v2 records",
+          "expected": {
+            "snapshot_id": "no_v2_snapshot_pin",
+            "state_has_scoped_key": false,
+            "canonicalization_version": 3
+          }
+        }
+      ],
+      "prohibited": [
+        "empty scoped_observed_calls_v2 key",
+        "canonicalization version bump"
+      ]
+    },
+    {
+      "id": "L14",
+      "title": "Valid new v2 records",
+      "spec_refs": [
+        "§11.1"
+      ],
+      "variants": [
+        {
+          "id": "a",
+          "inputs": "V01 and V03 records exist",
+          "expected": {
+            "state_has_scoped_key": true,
+            "scoped_fragment": "snapshot_fragment",
+            "fingerprints": 1,
+            "same_snapshot_id_on_all_surfaces": true
+          }
+        }
+      ],
+      "prohibited": [
+        "second locality hash",
+        "unrecorded snapshot change"
+      ]
+    },
+    {
+      "id": "L15",
+      "title": "Exact current captured Pod, owner, cluster and time",
+      "spec_refs": [
+        "§9"
+      ],
+      "variants": [
+        {
+          "id": "a",
+          "inputs": "CAP-A selected; V01",
+          "expected": {
+            "query": [
+              {
+                "candidate": "V01-base",
+                "selected_capture": "CAP-A",
+                "phase": 4,
+                "disposition": "APPLICABLE",
+                "reasons": [],
+                "workload": "W1"
+              }
+            ]
+          }
+        }
+      ],
+      "prohibited": [
+        "Workload from name, label or DEPLOYED_AS"
+      ]
+    },
+    {
+      "id": "L16",
+      "title": "CLIENT cluster UID conflicts with the captured envelope clusterUid",
+      "spec_refs": [
+        "§9",
+        "§10.1"
+      ],
+      "variants": [
+        {
+          "id": "a",
+          "inputs": "V04 (P1 UID, cluster K2); CAP-A contains P1 UID under K1",
+          "expected": {
+            "query": [
+              {
+                "candidate": "V04-same-pod-uid-other-cluster",
+                "selected_capture": "CAP-A",
+                "phase": 4,
+                "disposition": "CONFLICT",
+                "reasons": [
+                  "LOCALITY_CLUSTER_UID_CONFLICT"
+                ]
+              }
+            ],
+            "v2_retained": true
+          }
+        }
+      ],
+      "prohibited": [
+        "positive locality",
+        "v2 record rewritten or deleted"
+      ]
+    },
+    {
+      "id": "L17",
+      "title": "DECLARED_MANIFEST, missing capturedAt, incompatible captured day",
+      "spec_refs": [
+        "§8",
+        "§10.1"
+      ],
+      "variants": [
+        {
+          "id": "a",
+          "inputs": "V01; selected contribution is DECLARED_MANIFEST",
+          "expected": {
+            "query": [
+              {
+                "candidate": "V01-base",
+                "selected_capture": "CAP-DM",
+                "phase": 2,
+                "disposition": "UNSUPPORTED",
+                "reasons": [
+                  "LOCALITY_CAPTURE_MODE_UNSUPPORTED"
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "id": "b",
+          "inputs": "V01; CAP-A without a parseable capturedAt",
+          "expected": {
+            "query": [
+              {
+                "candidate": "V01-base",
+                "selected_capture": "CAP-A-NOTIME",
+                "phase": 3,
+                "disposition": "INSUFFICIENT_EVIDENCE",
+                "reasons": [
+                  "LOCALITY_CAPTURE_TIMESTAMP_MISSING"
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "id": "c",
+          "inputs": "V01; capture as CAP-A but capturedAt on D+1; window D",
+          "expected": {
+            "query": [
+              {
+                "candidate": "V01-base",
+                "selected_capture": "CAP-A-D1",
+                "phase": 3,
+                "disposition": "INAPPLICABLE",
+                "reasons": [
+                  "LOCALITY_CAPTURE_TEMPORAL_MISMATCH"
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "id": "d",
+          "inputs": "V01 (last_seen on D); CAP-A-D1 selected; window D+1",
+          "expected": {
+            "query": [
+              {
+                "candidate": "V01-base",
+                "selected_capture": "CAP-A-D1",
+                "phase": 3,
+                "disposition": "INAPPLICABLE",
+                "reasons": [
+                  "LOCALITY_OBSERVATION_TEMPORAL_MISMATCH"
+                ]
+              }
+            ]
+          }
+        }
+      ],
+      "prohibited": [
+        "positive observed caller-Workload locality",
+        "substituted or nearest capturedAt"
+      ]
+    },
+    {
+      "id": "L18",
+      "title": "P1 replaced by P2; the later selected snapshot lacks P1",
+      "spec_refs": [
+        "§9"
+      ],
+      "variants": [
+        {
+          "id": "a",
+          "inputs": "CAP-B selected; V01 (P1), V03 (P2)",
+          "expected": {
+            "query": [
+              {
+                "candidate": "V01-base",
+                "selected_capture": "CAP-B",
+                "phase": 4,
+                "disposition": "UNRESOLVED",
+                "reasons": [
+                  "LOCALITY_CAPTURE_MISSING_POD"
+                ]
+              },
+              {
+                "candidate": "V03-distinct-pod",
+                "selected_capture": "CAP-B",
+                "phase": 4,
+                "disposition": "APPLICABLE",
+                "reasons": [],
+                "workload": "W2"
+              }
+            ],
+            "v2_retained": true
+          }
+        }
+      ],
+      "prohibited": [
+        "P1's event attributed to P2 or W2",
+        "P1's event deleted or reported absent"
+      ]
+    },
+    {
+      "id": "L19",
+      "title": "Multiple admissible owners versus contradictory owner assertions",
+      "spec_refs": [
+        "§9",
+        "§10.1"
+      ],
+      "variants": [
+        {
+          "id": "a",
+          "inputs": "V01; selected capture leaves two admissible Workloads for P1, no contradiction (Path C AMBIGUOUS)",
+          "expected": {
+            "query": [
+              {
+                "candidate": "V01-base",
+                "selected_capture": "CAP-AMB",
+                "phase": 4,
+                "disposition": "AMBIGUOUS",
+                "reasons": [
+                  "LOCALITY_POD_OWNER_AMBIGUOUS"
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "id": "b",
+          "inputs": "V01; contradictory owner paths for P1 (Path C CONFLICT)",
+          "expected": {
+            "query": [
+              {
+                "candidate": "V01-base",
+                "selected_capture": "CAP-CONF",
+                "phase": 4,
+                "disposition": "CONFLICT",
+                "reasons": [
+                  "LOCALITY_POD_OWNER_CONFLICT"
+                ]
+              }
+            ]
+          }
+        }
+      ],
+      "prohibited": [
+        "specificity or recency guess",
+        "AMBIGUOUS collapsed into CONFLICT or UNRESOLVED"
+      ]
+    },
+    {
+      "id": "L20",
+      "title": "Caller local, target locality missing",
+      "spec_refs": [
+        "§4.1",
+        "§5"
+      ],
+      "variants": [
+        {
+          "id": "a",
+          "inputs": "CAP-A; V01",
+          "expected": {
+            "query": [
+              {
+                "candidate": "V01-base",
+                "selected_capture": "CAP-A",
+                "phase": 4,
+                "disposition": "APPLICABLE",
+                "reasons": [],
+                "workload": "W1"
+              }
+            ],
+            "target_runtime_locality": "unknown"
+          }
+        }
+      ],
+      "prohibited": [
+        "pricing placed in namespace shop or cluster K1"
+      ]
+    },
+    {
+      "id": "L21",
+      "title": "Applicable Service-level declaration plus independently observed scoped CALLS",
+      "spec_refs": [
+        "§5"
+      ],
+      "variants": [
+        {
+          "id": "a",
+          "inputs": "orders manifest declares the call to pricing O1; CAP-A; V01",
+          "expected": {
+            "query": [
+              {
+                "candidate": "V01-base",
+                "selected_capture": "CAP-A",
+                "phase": 4,
+                "disposition": "APPLICABLE",
+                "reasons": [],
+                "workload": "W1"
+              }
+            ],
+            "qualification": "CONFIRMED"
+          }
+        }
+      ],
+      "prohibited": [
+        "declaration treated as Workload-authored or exclusive"
+      ]
+    },
+    {
+      "id": "L22",
+      "title": "Scoped observed CALLS without an applicable declaration",
+      "spec_refs": [
+        "§5"
+      ],
+      "variants": [
+        {
+          "id": "a",
+          "inputs": "CAP-A; V06 (O2); no declaration for O2",
+          "expected": {
+            "query": [
+              {
+                "candidate": "V06-other-operation",
+                "selected_capture": "CAP-A",
+                "phase": 4,
+                "disposition": "APPLICABLE",
+                "reasons": [],
+                "workload": "W2"
+              }
+            ],
+            "qualification": "OBSERVED_ONLY"
+          }
+        },
+        {
+          "id": "b",
+          "inputs": "as a, plus the O1 declaration",
+          "expected": {
+            "qualification": "OBSERVED_ONLY"
+          }
+        }
+      ],
+      "prohibited": [
+        "O2 confirmed by the declaration of O1"
+      ]
+    },
+    {
+      "id": "L23",
+      "title": "Declared-only relation or Service-level coverage, no scoped call",
+      "spec_refs": [
+        "§5"
+      ],
+      "variants": [
+        {
+          "id": "a",
+          "inputs": "O1 declared; v1 coverage exists; no v2",
+          "expected": {
+            "answer": {
+              "disposition": "INSUFFICIENT_EVIDENCE",
+              "reasons": [
+                "LOCALITY_LOCAL_COVERAGE_UNAVAILABLE",
+                "LOCALITY_NO_ELIGIBLE_LOCAL_OBSERVATION"
+              ]
+            }
+          }
+        }
+      ],
+      "prohibited": [
+        "local NOT_OBSERVED_IN_WINDOW",
+        "verified local absence",
+        "positive Workload-local CALLS"
+      ]
+    },
+    {
+      "id": "L24",
+      "title": "Region, tenant, version or messaging locality requested",
+      "spec_refs": [
+        "§4.2",
+        "§10.1"
+      ],
+      "variants": [
+        {
+          "id": "a",
+          "inputs": "request adds a region, tenant or service-version dimension",
+          "expected": {
+            "request": {
+              "phase": 1,
+              "disposition": "UNSUPPORTED",
+              "reasons": [
+                "LOCALITY_UNSUPPORTED_DIMENSION"
+              ]
+            }
+          }
+        },
+        {
+          "id": "b",
+          "inputs": "request asks for SENDS/PUBLISHES_TO locality",
+          "expected": {
+            "request": {
+              "phase": 1,
+              "disposition": "UNSUPPORTED",
+              "reasons": [
+                "LOCALITY_UNSUPPORTED_RELATION"
+              ]
+            }
+          }
+        }
+      ],
+      "prohibited": [
+        "global or wildcard fallback"
+      ]
+    },
+    {
+      "id": "L25",
+      "title": "Sub-day range, or an event exactly at next-day midnight",
+      "spec_refs": [
+        "§8"
+      ],
+      "variants": [
+        {
+          "id": "a",
+          "inputs": "request with date-time bounds inside D",
+          "expected": {
+            "request": {
+              "phase": 1,
+              "disposition": "UNSUPPORTED",
+              "reasons": [
+                "LOCALITY_UNSUPPORTED_TEMPORAL_RESOLUTION"
+              ]
+            }
+          }
+        },
+        {
+          "id": "b",
+          "inputs": "event at 2026-09-29T00:00:00.000000Z; window D",
+          "expected": {
+            "utc_day": "2026-09-29",
+            "in_window_D": false,
+            "vectors": [
+              "M03-next-midnight-excluded",
+              "D04-midnight-is-next-day"
+            ]
+          }
+        }
+      ],
+      "prohibited": [
+        "silently widened or narrowed window",
+        "change to v0.5 date-time windows"
+      ]
+    },
+    {
+      "id": "L26",
+      "title": "Name-only, co-location or configured Service DEPLOYED_AS, no v2",
+      "spec_refs": [
+        "§5",
+        "§6.1"
+      ],
+      "variants": [
+        {
+          "id": "a",
+          "inputs": "U01; Deployment orders annotated service:orders; Pod names match orders-*; no v2",
+          "expected": {
+            "answer": {
+              "disposition": "INSUFFICIENT_EVIDENCE",
+              "reasons": [
+                "LOCALITY_LOCAL_COVERAGE_UNAVAILABLE",
+                "LOCALITY_NO_ELIGIBLE_LOCAL_OBSERVATION"
+              ]
+            }
+          }
+        }
+      ],
+      "prohibited": [
+        "per-interaction caller locality inferred"
+      ]
+    },
+    {
+      "id": "L27",
+      "title": "Overlap capture of two Deployments, then an authoritative capture without the old Pod",
+      "spec_refs": [
+        "§9",
+        "§12"
+      ],
+      "variants": [
+        {
+          "id": "a",
+          "inputs": "CAP-A selected; V01 (P1 to O1), V06 (P2 to O2)",
+          "expected": {
+            "query": [
+              {
+                "candidate": "V01-base",
+                "selected_capture": "CAP-A",
+                "phase": 4,
+                "disposition": "APPLICABLE",
+                "reasons": [],
+                "workload": "W1"
+              },
+              {
+                "candidate": "V06-other-operation",
+                "selected_capture": "CAP-A",
+                "phase": 4,
+                "disposition": "APPLICABLE",
+                "reasons": [],
+                "workload": "W2"
+              }
+            ],
+            "workload_localities": 2
+          }
+        },
+        {
+          "id": "b",
+          "inputs": "CAP-B selected afterwards",
+          "expected": {
+            "query": [
+              {
+                "candidate": "V01-base",
+                "selected_capture": "CAP-B",
+                "phase": 4,
+                "disposition": "UNRESOLVED",
+                "reasons": [
+                  "LOCALITY_CAPTURE_MISSING_POD"
+                ]
+              },
+              {
+                "candidate": "V06-other-operation",
+                "selected_capture": "CAP-B",
+                "phase": 4,
+                "disposition": "APPLICABLE",
+                "reasons": [],
+                "workload": "W2"
+              }
+            ]
+          }
+        }
+      ],
+      "prohibited": [
+        "two localities claimed from CAP-B",
+        "P1 locality reconstructed from an externally kept CAP-A"
+      ]
+    },
+    {
+      "id": "L28",
+      "title": "Many successive Pods at a constant Workload count",
+      "spec_refs": [
+        "§11.5"
+      ],
+      "variants": [
+        {
+          "id": "a",
+          "inputs": "n distinct Pods of W1 each call O1 on D",
+          "expected": {
+            "v2_record_count": "n",
+            "v1_bucket_count": 1,
+            "cost_obligation": "I2/I4 churn measurement (v2 contract §9)"
+          }
+        }
+      ],
+      "prohibited": [
+        "compaction or truncation of v2 records"
+      ]
+    },
+    {
+      "id": "L29",
+      "title": "Incomplete inventory or unauthorized source removal",
+      "spec_refs": [
+        "§11.3"
+      ],
+      "variants": [
+        {
+          "id": "a",
+          "inputs": "selected capture's inventory incomplete; P1 absent from it",
+          "expected": {
+            "query": [
+              {
+                "candidate": "V01-base",
+                "selected_capture": "CAP-PARTIAL",
+                "phase": 4,
+                "disposition": "UNRESOLVED",
+                "reasons": [
+                  "LOCALITY_CAPTURE_MISSING_POD"
+                ]
+              }
+            ],
+            "v2_retained": true
+          }
+        }
+      ],
+      "prohibited": [
+        "local absence inferred",
+        "removal authority widened"
+      ]
+    },
+    {
+      "id": "L30",
+      "title": "Intent or agent-narrative changes alone",
+      "spec_refs": [
+        "§4.3"
+      ],
+      "variants": [
+        {
+          "id": "a",
+          "inputs": "only narrative or future-Intent text changes",
+          "expected": {
+            "assessment_changed": false,
+            "snapshot_changed": false
+          }
+        }
+      ],
+      "prohibited": [
+        "Intent effective interval used as the observation window",
+        "changed evidence or qualification"
+      ]
+    },
+    {
+      "id": "L31",
+      "title": "v2 last_seen on D, capture capturedAt on D+1, request D",
+      "spec_refs": [
+        "§8"
+      ],
+      "variants": [
+        {
+          "id": "a",
+          "inputs": "V01; CAP-A-D1; window D",
+          "expected": {
+            "query": [
+              {
+                "candidate": "V01-base",
+                "selected_capture": "CAP-A-D1",
+                "phase": 3,
+                "disposition": "INAPPLICABLE",
+                "reasons": [
+                  "LOCALITY_CAPTURE_TEMPORAL_MISMATCH"
+                ]
+              }
+            ]
+          }
+        }
+      ],
+      "prohibited": [
+        "positive locality on D"
+      ]
+    },
+    {
+      "id": "L32",
+      "title": "Two Operations of one provider Service, plus a missing or ambiguous owner",
+      "spec_refs": [
+        "§5.1"
+      ],
+      "variants": [
+        {
+          "id": "a",
+          "inputs": "CAP-A; P1 calls O1 (declared) and O3 = operation:pricing:GET:/prices/{id} (undeclared)",
+          "expected": {
+            "per_operation_qualification": {
+              "O1": "CONFIRMED",
+              "O3": "OBSERVED_ONLY"
+            },
+            "logical_provider": "service:pricing",
+            "group_evidence": "sorted union of O1 and O3 references",
+            "group_shape": "I3"
+          }
+        },
+        {
+          "id": "b",
+          "inputs": "an Operation whose canonical owner is missing or ambiguous",
+          "expected": {
+            "provider_dependency_minted": false
+          }
+        }
+      ],
+      "prohibited": [
+        "cross-Operation CONFIRMED",
+        "provider Service from a display name"
+      ]
+    },
+    {
+      "id": "L33",
+      "title": "Two ReplicaSets under one Deployment versus two distinct Deployments",
+      "spec_refs": [
+        "§2.1",
+        "§12"
+      ],
+      "variants": [
+        {
+          "id": "a",
+          "inputs": "P1 and P2 owned by two ReplicaSets of Deployment orders",
+          "expected": {
+            "v2_ids_distinct": true,
+            "workload_localities": 1
+          }
+        },
+        {
+          "id": "b",
+          "inputs": "P1 in orders, P2 in orders-canary (CAP-A)",
+          "expected": {
+            "v2_ids_distinct": true,
+            "workload_localities": 2
+          }
+        }
+      ],
+      "prohibited": [
+        "ReplicaSet treated as a Workload locality"
+      ]
+    },
+    {
+      "id": "L34",
+      "title": "Query-time namespace contradiction versus CLIENT-internal contradiction",
+      "spec_refs": [
+        "§6.2",
+        "§10.1"
+      ],
+      "variants": [
+        {
+          "id": "a",
+          "inputs": "CLIENT k8s.namespace.name shop-old passes ingestion; CAP-A has P1 in shop",
+          "expected": {
+            "ingestion": {
+              "phase": "ingestion",
+              "v1": "unchanged",
+              "v2_written": true,
+              "disposition": "APPLICABLE",
+              "reasons": []
+            },
+            "query": [
+              {
+                "candidate": "V01-base",
+                "selected_capture": "CAP-A",
+                "phase": 4,
+                "disposition": "CONFLICT",
+                "reasons": [
+                  "LOCALITY_NAMESPACE_CONFLICT"
+                ]
+              }
+            ],
+            "v2_retained": true
+          }
+        },
+        {
+          "id": "b",
+          "inputs": "CLIENT Resource carries both k8s.deployment.name and k8s.statefulset.name",
+          "expected": {
+            "ingestion": {
+              "phase": "ingestion",
+              "v1": "unchanged",
+              "v2_written": false,
+              "disposition": "CONFLICT",
+              "reasons": [
+                "LOCALITY_CLIENT_INTERNAL_CONFLICT"
+              ]
+            }
+          }
+        }
+      ],
+      "prohibited": [
+        "capture compared at ingestion",
+        "valid v2 suppressed by a query-time conflict"
+      ]
+    },
+    {
+      "id": "L35",
+      "title": "Ingestion refusals versus read-side v1 abstention, plus valid v2 with Path C owner problems",
+      "spec_refs": [
+        "§10.1",
+        "§10.2"
+      ],
+      "variants": [
+        {
+          "id": "a",
+          "inputs": "SERVER_ONLY",
+          "expected": {
+            "ingestion": {
+              "phase": "ingestion",
+              "v1": "none",
+              "v2_written": false,
+              "disposition": "INSUFFICIENT_EVIDENCE",
+              "reasons": [
+                "LOCALITY_SERVER_ONLY_NO_CLIENT"
+              ]
+            }
+          }
+        },
+        {
+          "id": "b",
+          "inputs": "no CLIENT carrier (not SERVER_ONLY)",
+          "expected": {
+            "ingestion": {
+              "phase": "ingestion",
+              "v1": "unchanged",
+              "v2_written": false,
+              "disposition": "INSUFFICIENT_EVIDENCE",
+              "reasons": [
+                "LOCALITY_CLIENT_IDENTITY_MISSING"
+              ]
+            }
+          }
+        },
+        {
+          "id": "c",
+          "inputs": "carrier present, Pod UID missing only",
+          "expected": {
+            "ingestion": {
+              "phase": "ingestion",
+              "v1": "unchanged",
+              "v2_written": false,
+              "disposition": "INSUFFICIENT_EVIDENCE",
+              "reasons": [
+                "LOCALITY_POD_UID_MISSING"
+              ]
+            }
+          }
+        },
+        {
+          "id": "d",
+          "inputs": "carrier present, environment and Pod UID missing (matrix §15.1 interpretation)",
+          "expected": {
+            "ingestion": {
+              "phase": "ingestion",
+              "v1": "unchanged",
+              "v2_written": false,
+              "disposition": "INSUFFICIENT_EVIDENCE",
+              "reasons": [
+                "LOCALITY_CLIENT_IDENTITY_MISSING",
+                "LOCALITY_POD_UID_MISSING"
+              ]
+            }
+          }
+        },
+        {
+          "id": "e",
+          "inputs": "known ingress environment mismatch",
+          "expected": {
+            "ingestion": {
+              "phase": "ingestion",
+              "v1": "unchanged",
+              "v2_written": false,
+              "disposition": "INAPPLICABLE",
+              "reasons": [
+                "LOCALITY_CLIENT_FACT_ENVIRONMENT_MISMATCH"
+              ]
+            }
+          }
+        },
+        {
+          "id": "f",
+          "inputs": "known ingress day mismatch",
+          "expected": {
+            "ingestion": {
+              "phase": "ingestion",
+              "v1": "unchanged",
+              "v2_written": false,
+              "disposition": "INAPPLICABLE",
+              "reasons": [
+                "LOCALITY_CLIENT_FACT_DAY_MISMATCH"
+              ]
+            }
+          }
+        },
+        {
+          "id": "g",
+          "inputs": "CLIENT-internal contradiction plus missing Pod UID",
+          "expected": {
+            "ingestion": {
+              "phase": "ingestion",
+              "v1": "unchanged",
+              "v2_written": false,
+              "disposition": "CONFLICT",
+              "reasons": [
+                "LOCALITY_CLIENT_INTERNAL_CONFLICT",
+                "LOCALITY_POD_UID_MISSING"
+              ]
+            }
+          }
+        },
+        {
+          "id": "h",
+          "inputs": "read side after any of b-g: only v1 exists",
+          "expected": {
+            "answer": {
+              "disposition": "INSUFFICIENT_EVIDENCE",
+              "reasons": [
+                "LOCALITY_LOCAL_COVERAGE_UNAVAILABLE",
+                "LOCALITY_NO_ELIGIBLE_LOCAL_OBSERVATION"
+              ]
+            }
+          }
+        },
+        {
+          "id": "i",
+          "inputs": "valid V01 with Path C ambiguous, then conflicting, owners",
+          "expected": {
+            "query": [
+              {
+                "candidate": "V01-base",
+                "selected_capture": "CAP-AMB",
+                "phase": 4,
+                "disposition": "AMBIGUOUS",
+                "reasons": [
+                  "LOCALITY_POD_OWNER_AMBIGUOUS"
+                ]
+              },
+              {
+                "candidate": "V01-base",
+                "selected_capture": "CAP-CONF",
+                "phase": 4,
+                "disposition": "CONFLICT",
+                "reasons": [
+                  "LOCALITY_POD_OWNER_CONFLICT"
+                ]
+              }
+            ]
+          }
+        }
+      ],
+      "prohibited": [
+        "specific ingress code in a query answer",
+        "every v1 contribution presumed refused",
+        "generic carrier-missing code together with a UID-missing code on the UID's account"
+      ]
+    },
+    {
+      "id": "L36",
+      "title": "Day-D observation, day-D+1 capture with a conflicting owner chain, request D",
+      "spec_refs": [
+        "§10.1"
+      ],
+      "variants": [
+        {
+          "id": "a",
+          "inputs": "V01; CAP-CONF-D1 (capturedAt D+1, contradictory owners); window D",
+          "expected": {
+            "query": [
+              {
+                "candidate": "V01-base",
+                "selected_capture": "CAP-CONF-D1",
+                "phase": 3,
+                "disposition": "INAPPLICABLE",
+                "reasons": [
+                  "LOCALITY_CAPTURE_TEMPORAL_MISMATCH"
+                ]
+              }
+            ],
+            "phase_4_evaluated": false
+          }
+        }
+      ],
+      "prohibited": [
+        "in-scope CONFLICT asserted",
+        "owner reasons invented for an unevaluated phase"
+      ]
+    },
+    {
+      "id": "L37",
+      "title": "Candidate has only DECLARED_MANIFEST with contradictory-looking owner data",
+      "spec_refs": [
+        "§10.1"
+      ],
+      "variants": [
+        {
+          "id": "a",
+          "inputs": "V01; CAP-DM with contradictory owner references",
+          "expected": {
+            "query": [
+              {
+                "candidate": "V01-base",
+                "selected_capture": "CAP-DM",
+                "phase": 2,
+                "disposition": "UNSUPPORTED",
+                "reasons": [
+                  "LOCALITY_CAPTURE_MODE_UNSUPPORTED"
+                ]
+              }
+            ],
+            "phase_4_evaluated": false
+          }
+        }
+      ],
+      "prohibited": [
+        "phase 4 owner assertion",
+        "observed locality invented from a manifest"
+      ]
+    }
+  ]
+}

@@ -328,3 +328,135 @@ def test_v05_style_merge_would_be_order_dependent() -> None:
     a1, b, a2 = seeds["a10"], seeds["b12"], seeds["a11"]
     assert _fold((a1, b, a2), absorbing=False)["k8s_pod_name"] == "orders-a"
     assert _fold((a1, a2, b), absorbing=False)["k8s_pod_name"] is None
+
+
+# --- I1.5 conformance dossier (i1-conformance-dossier.md) ---
+
+CONFORMANCE = _load("conformance-expected.json")
+DISPOSITIONS = {
+    "APPLICABLE",
+    "INAPPLICABLE",
+    "INSUFFICIENT_EVIDENCE",
+    "UNRESOLVED",
+    "AMBIGUOUS",
+    "CONFLICT",
+    "UNSUPPORTED",
+}
+# Within-phase precedence (I1 §10.1); UNSUPPORTED is terminal in phases 1-2 and never ranked.
+_PRECEDENCE = ["CONFLICT", "AMBIGUOUS", "INAPPLICABLE", "UNRESOLVED", "INSUFFICIENT_EVIDENCE"]
+# Each code's disposition (support matrix §15). Codes that only ingestion can establish (§15.1).
+_REASON_DISPOSITION = {
+    "LOCALITY_CLIENT_IDENTITY_MISSING": "INSUFFICIENT_EVIDENCE",
+    "LOCALITY_SERVER_ONLY_NO_CLIENT": "INSUFFICIENT_EVIDENCE",
+    "LOCALITY_CLIENT_INTERNAL_CONFLICT": "CONFLICT",
+    "LOCALITY_CLIENT_FACT_ENVIRONMENT_MISMATCH": "INAPPLICABLE",
+    "LOCALITY_CLIENT_FACT_DAY_MISMATCH": "INAPPLICABLE",
+    "LOCALITY_CLUSTER_UID_MISSING": "INSUFFICIENT_EVIDENCE",
+    "LOCALITY_CLUSTER_UID_CONFLICT": "CONFLICT",
+    "LOCALITY_POD_UID_MISSING": "INSUFFICIENT_EVIDENCE",
+    "LOCALITY_CAPTURE_MISSING_POD": "UNRESOLVED",
+    "LOCALITY_CAPTURE_MODE_UNSUPPORTED": "UNSUPPORTED",
+    "LOCALITY_CAPTURE_TEMPORAL_MISMATCH": "INAPPLICABLE",
+    "LOCALITY_CAPTURE_TIMESTAMP_MISSING": "INSUFFICIENT_EVIDENCE",
+    "LOCALITY_OBSERVATION_TEMPORAL_MISMATCH": "INAPPLICABLE",
+    "LOCALITY_POD_OWNER_UNRESOLVED": "UNRESOLVED",
+    "LOCALITY_POD_OWNER_AMBIGUOUS": "AMBIGUOUS",
+    "LOCALITY_POD_OWNER_CONFLICT": "CONFLICT",
+    "LOCALITY_NAMESPACE_CONFLICT": "CONFLICT",
+    "LOCALITY_LEGACY_V1_UNSCOPED": "INSUFFICIENT_EVIDENCE",
+    "LOCALITY_UNSUPPORTED_DIMENSION": "UNSUPPORTED",
+    "LOCALITY_UNSUPPORTED_RELATION": "UNSUPPORTED",
+    "LOCALITY_UNSUPPORTED_TEMPORAL_RESOLUTION": "UNSUPPORTED",
+    "LOCALITY_NO_ELIGIBLE_LOCAL_OBSERVATION": "INSUFFICIENT_EVIDENCE",
+    "LOCALITY_LOCAL_COVERAGE_UNAVAILABLE": "INSUFFICIENT_EVIDENCE",
+}
+_INGESTION_ONLY = {
+    "LOCALITY_CLIENT_IDENTITY_MISSING",
+    "LOCALITY_SERVER_ONLY_NO_CLIENT",
+    "LOCALITY_CLIENT_INTERNAL_CONFLICT",
+    "LOCALITY_CLIENT_FACT_ENVIRONMENT_MISMATCH",
+    "LOCALITY_CLIENT_FACT_DAY_MISMATCH",
+    "LOCALITY_CLUSTER_UID_MISSING",
+    "LOCALITY_POD_UID_MISSING",
+}
+
+
+def _results(expected: dict) -> list[tuple[str, dict]]:
+    found: list[tuple[str, dict]] = []
+    if "ingestion" in expected:
+        found.append(("ingestion", expected["ingestion"]))
+    if "request" in expected:
+        found.append(("request", expected["request"]))
+    if "answer" in expected:
+        found.append(("answer", expected["answer"]))
+    found.extend(("query", r) for r in expected.get("query", []))
+    return found
+
+
+def _variants() -> list[tuple[str, dict]]:
+    return [(f"{c['id']}{v['id']}", v) for c in CONFORMANCE["cases"] for v in c["variants"]]
+
+
+def test_conformance_covers_exactly_l01_to_l37() -> None:
+    ids = [case["id"] for case in CONFORMANCE["cases"]]
+    assert ids == [f"L{n:02d}" for n in range(1, 38)]
+    for case in CONFORMANCE["cases"]:
+        assert case["variants"] and case["prohibited"], case["id"]
+        variant_ids = [v["id"] for v in case["variants"]]
+        assert len(variant_ids) == len(set(variant_ids)), case["id"]
+
+
+def test_reason_disposition_table_matches_frozen_codes() -> None:
+    assert set(_REASON_DISPOSITION) == _spec_reason_codes()
+
+
+@pytest.mark.parametrize(("name", "variant"), _variants(), ids=[n for n, _ in _variants()])
+def test_conformance_result_is_consistent(name: str, variant: dict) -> None:
+    for kind, result in _results(variant["expected"]):
+        disposition, reasons = result["disposition"], result["reasons"]
+        assert disposition in DISPOSITIONS, name
+        assert reasons == sorted(set(reasons)), name
+        assert set(reasons) <= set(_REASON_DISPOSITION), name
+        if kind != "ingestion":
+            # §10.2: an ingestion-specific cause is never visible in a query answer.
+            assert not set(reasons) & _INGESTION_ONLY, name
+        if kind == "query":
+            assert result["phase"] in (2, 3, 4), name
+        if kind == "request":
+            assert result["phase"] == 1 and disposition == "UNSUPPORTED", name
+        if disposition == "UNSUPPORTED":
+            assert kind == "request" or result.get("phase") == 2, name
+        if not reasons:
+            assert disposition == "APPLICABLE" or "limitation_without_code" in result, name
+            continue
+        implied = {_REASON_DISPOSITION[r] for r in reasons}
+        if "UNSUPPORTED" in implied:
+            assert implied == {"UNSUPPORTED"} and disposition == "UNSUPPORTED", name
+        else:
+            assert disposition == min(implied, key=_PRECEDENCE.index), name
+
+
+def test_conformance_v2_references_exist() -> None:
+    known = set(KEY_VECTORS) | {v["id"] for v in V2["v1_unchanged"]}
+    text = json.dumps(CONFORMANCE["cases"])
+    for ref in re.findall(r'"((?:V|U)\d{2}-[a-z0-9-]+)"', text):
+        assert ref in known, ref
+    for case in CONFORMANCE["cases"]:
+        for variant in case["variants"]:
+            for result in variant["expected"].get("query", []):
+                assert result["candidate"] in KEY_VECTORS
+                assert result["selected_capture"] in CONFORMANCE["fixtures"]["captures"]
+
+
+def test_no_local_not_observed_in_window_is_ever_expected() -> None:
+    for case in CONFORMANCE["cases"]:
+        for variant in case["variants"]:
+            assert variant["expected"].get("qualification") != "NOT_OBSERVED_IN_WINDOW", case["id"]
+
+
+def test_dossier_headings_match_machine_readable_cases() -> None:
+    dossier = (SPEC_DIR / "i1-conformance-dossier.md").read_text(encoding="utf-8")
+    headings = re.findall(r"^### (L\d{2}) — (.+)$", dossier, flags=re.MULTILINE)
+    assert headings == [(case["id"], case["title"]) for case in CONFORMANCE["cases"]]
+    for name, _ in _variants():
+        assert f"| {name} |" in dossier, name
