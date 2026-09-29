@@ -2777,23 +2777,6 @@ organizational governance engine.
 
 ---
 
-### 2026-09-29 — API landscape landmark impact assessment
-
-- **Product strategy:** no change to AIP's customer proposition, Moldable Architecture Knowledge
-  concept, or evidence-qualified Core Domain. The new research clarifies the distinction between
-  an API-management operating view and traceable architectural knowledge; graph storage and
-  visualization remain replaceable implementation details.
-- **Roadmap:** no new release or reordered capability. ROADMAP.md already plans v0.7
-  API-Aware Current State with these two adorsys articles as external inputs, the configured-versus-
-  observed consumer/API question, real-source validation and explicit coverage/identity limitations.
-  v0.8 independently establishes Intent; v0.9 compares qualified Current State and applicable Intent.
-- **Landmark consolidation:** the API knowledge-layer discussion is one new landscape entry;
-  API-boundary/execution-governance distinctions enrich the existing Kocot entry. GT and TypeSafe/Jev
-  already have detailed entries; the additions above preserve their respective consumer and
-  epistemic boundaries rather than creating duplicates.
-- **Decision:** documentation-only landscape clarification. No scope expansion, new acceptance gate,
-  implementation dependency, or change to ROADMAP.md/product doctrine is justified by these sources.
-
 ## 7. How to use this document
 
 When a source appears relevant to AIP:
