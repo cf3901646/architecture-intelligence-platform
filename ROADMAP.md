@@ -383,7 +383,7 @@ Exit capability:
 > and can deterministically project those qualified local assessments into a bounded Current-State
 > view.**
 
-## v0.7 — API Landscape Current State (planned)
+## v0.7 — API-Aware Current State (planned)
 
 **Goal: Establish evidence-qualified Current-State knowledge of how APIs are exposed and consumed,
 while retaining the distinct meanings of contracts, operations, gateway objects, application services,
@@ -665,7 +665,7 @@ v0.3  validation and hardening
   -> v0.4  trusted architecture context for agents
   -> v0.5  broader architecture discovery
   -> v0.6  locality-aware Current State
-  -> v0.7  API Landscape Current State
+  -> v0.7  API-Aware Current State
   -> v0.8  explicit architecture Intent
   -> v0.9  qualified architecture assessment
   -> v1.0-rc  contract freeze and production qualification
