@@ -78,6 +78,19 @@ class CoverageConfig(BaseModel):
     model_config = {"populate_by_name": True}
 
 
+class ScopedEvidenceConfig(BaseModel):
+    """v0.6.0 I2 decision record D1/D10 - whether accepted CALLS also produce an isolated
+    caller-Pod-scoped v2 record. Off by default: with it off the graph, the snapshot and every v0.5
+    answer are byte-identical to before, and an existing config.yaml with none of these keys starts
+    unchanged. `stream-id` names this AIP instance's live `/v1/traces` stream in the operational
+    transition report and cutover ledger."""
+
+    enabled: bool = False
+    stream_id: str = Field(default="otlp-http", min_length=1, alias="stream-id")
+
+    model_config = {"populate_by_name": True}
+
+
 class TelemetryConfig(BaseModel):
     service_aliases: dict[str, str] = Field(default_factory=dict)
     queue_aliases: dict[str, str] = Field(default_factory=dict)
@@ -89,6 +102,9 @@ class TelemetryConfig(BaseModel):
         default_factory=HttpCorrelationConfig, alias="http-correlation"
     )
     coverage: CoverageConfig = Field(default_factory=CoverageConfig)
+    scoped_evidence: ScopedEvidenceConfig = Field(
+        default_factory=ScopedEvidenceConfig, alias="scoped-evidence"
+    )
 
     model_config = {"populate_by_name": True}
 

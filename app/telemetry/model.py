@@ -33,6 +33,24 @@ class CorrelationMode(StrEnum):
     MESSAGING_PROCESS = "MESSAGING_PROCESS"
 
 
+# 11H R3/spec §14 - "preserve the strongest mode" when merging two evidence buckets. None (no
+# mode recorded, e.g. pre-11H-C evidence) is weakest, so any real mode always wins over it. Shared by
+# the v1 evidence merge and the v0.6.0 scoped v2 merge so the two can never rank modes differently.
+_CORRELATION_MODE_STRENGTH: dict[str | None, int] = {
+    None: 0,
+    "MESSAGING_SEND": 1,
+    "MESSAGING_RECEIVE": 1,
+    "MESSAGING_PROCESS": 1,
+    "SERVER_ONLY": 2,
+    "CLIENT_ONLY": 2,
+    "CLIENT_SERVER": 3,
+}
+
+
+def stronger_correlation_mode(a: str | None, b: str | None) -> str | None:
+    return a if _CORRELATION_MODE_STRENGTH.get(a, 0) >= _CORRELATION_MODE_STRENGTH.get(b, 0) else b
+
+
 class RuntimeSpan(BaseModel):
     """Temporary OTLP ingestion model (spec §10) - never persisted to Neo4j. Decoded from a raw
     OTLP/HTTP export by app.telemetry.otlp_receiver; consumed and discarded by downstream

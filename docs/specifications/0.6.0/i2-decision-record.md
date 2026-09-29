@@ -236,6 +236,20 @@ No Kubernetes or architecture source revision is ever invented for telemetry.
 
 ---
 
+## D12 — I2.2 clarifications (added in I2.2a; additive, D1–D11 unchanged)
+
+These fix details the frozen decisions left to implementation. They add no semantics beyond the I1 contract.
+
+| # | Clarification | Applies in |
+|---|---|---|
+| D12.1 | **Primary cause (D7).** The counter key `primary_reason` of a refused interaction is the lexicographically smallest reason among those whose disposition equals the refusal's primary disposition (`CONFLICT` > `AMBIGUOUS` > `INAPPLICABLE` > `UNRESOLVED` > `INSUFFICIENT_EVIDENCE`). The complete sorted reasons are still reported. *(Owner decision, I2.2 planning.)* | I2.2c |
+| D12.2 | **Legacy membership (D8) covers v1 CALLS buckets only.** A pre-enablement bucket is a distinct `evidence:otel:` ID referenced by a `CALLS` relation's `evidence_ids`, because v2 is defined for CALLS alone and v1 evidence nodes do not record their relation type. | I2.2c |
+| D12.3 | **Revision values are read after the unit's bump.** `bump_revision` returns the new revision; `enabled_at_revision`, `cutover_revision` and `mixed_at_revision` take that value, so they name the revision the unit commits. | I2.2b, I2.2c |
+| D12.4 | **Lock before read (D6).** A v2 node is created or matched and locked (a no-op `SET`) before it is read and merged, so a concurrent unit blocks and then reads the committed record. v1 has no such lock and can lose an update under concurrent POSTs; v2 must not inherit that. | I2.2b |
+| D12.5 | **Cutover race (D8).** The first enabled unit checks for the ledger without a lock, then takes the revision-singleton lock and re-checks, so exactly one ledger is written. | I2.2c |
+| D12.6 | **Candidate reader index (D3).** The reader filters by caller Service, so an index on `ScopedObservedCallV2.subject_id` is created alongside the uniqueness constraint on `id`. | I2.2a |
+| D12.7 | **`config.demo.yaml` is not edited.** It is digest-pinned by the release golden path, and the flag defaults to off when the block is absent. Only `config.yaml` documents the new block. | I2.2a |
+
 ## Traceability
 
 | I2 requirement | Decision |
@@ -250,3 +264,4 @@ No Kubernetes or architecture source revision is ever invented for telemetry.
 | §8.1 same-snapshot fence for scope changes | D5 item 4 |
 | §9 identity; §17.2, §17.5 | D9 |
 | §15 I2.1: record the I1 closure SHA | Header |
+| §15 I2.2: implementation details left to I2.2 | D12 |

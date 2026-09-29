@@ -68,6 +68,22 @@ CONSTRAINTS: list[LiteralString] = [
         "CREATE CONSTRAINT runtime_identity_observation_id IF NOT EXISTS "
         "FOR (o:RuntimeIdentityObservation) REQUIRE o.id IS UNIQUE"
     ),
+    # v0.6.0 I2.2a (decision record D1): the isolated caller-Pod-scoped v2 observed CALLS record -
+    # its own label, never :Evidence, no relationships, no owner_source_ids. See
+    # app.provenance.model.ScopedObservedCall.
+    (
+        "CREATE CONSTRAINT scoped_observed_call_v2_id IF NOT EXISTS "
+        "FOR (v:ScopedObservedCallV2) REQUIRE v.id IS UNIQUE"
+    ),
+]
+
+INDEXES: list[LiteralString] = [
+    # The v2 candidate reader filters by caller Service (decision record D3); without this it would
+    # scan every v2 node, which grows with Pod churn.
+    (
+        "CREATE INDEX scoped_observed_call_v2_subject IF NOT EXISTS "
+        "FOR (v:ScopedObservedCallV2) ON (v.subject_id)"
+    ),
 ]
 
 
@@ -76,5 +92,7 @@ def ensure_schema(session: neo4j.Session) -> None:
     internal revision-fence singleton exists (spec §19) before the graph is written to or read
     through the architecture-intelligence contract."""
     for statement in CONSTRAINTS:
+        session.run(statement)
+    for statement in INDEXES:
         session.run(statement)
     ensure_revision_singleton(session)

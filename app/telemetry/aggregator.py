@@ -5,7 +5,11 @@ from app.graph.repository import open_session
 from app.graph.revision_fence import bump_revision
 from app.graph.schema import ensure_schema
 from app.provenance.model import ObservedEvidence, RuntimeIdentityObservation
-from app.telemetry.model import ObservationBatch, ObservedFactCandidate
+from app.telemetry.model import (
+    ObservationBatch,
+    ObservedFactCandidate,
+    stronger_correlation_mode,
+)
 
 _MERGE_STUB_NODE_QUERY = (
     "MERGE (n:{label} {{id: $id}}) "
@@ -21,23 +25,6 @@ _READ_EVIDENCE_QUERY = (
     "e.observation_count AS observation_count, e.sample_trace_ids AS sample_trace_ids, "
     "e.service_version AS service_version, e.correlation_mode AS correlation_mode"
 )
-
-# 11H R3/spec §14 - "preserve the strongest mode" when merging two evidence buckets. None (no
-# mode recorded, e.g. pre-11H-C evidence) is weakest, so any real mode always wins over it.
-_CORRELATION_MODE_STRENGTH = {
-    None: 0,
-    "MESSAGING_SEND": 1,
-    "MESSAGING_RECEIVE": 1,
-    "MESSAGING_PROCESS": 1,
-    "SERVER_ONLY": 2,
-    "CLIENT_ONLY": 2,
-    "CLIENT_SERVER": 3,
-}
-
-
-def _stronger_mode(a: str | None, b: str | None) -> str | None:
-    return a if _CORRELATION_MODE_STRENGTH.get(a, 0) >= _CORRELATION_MODE_STRENGTH.get(b, 0) else b
-
 
 _MERGE_EVIDENCE_QUERY = "MERGE (e:Evidence {id: $id}) SET e += $props"
 
@@ -103,7 +90,9 @@ def merge_evidence(existing: ObservedEvidence | None, seed: ObservedEvidence) ->
             "last_seen": max(existing.last_seen, seed.last_seen),
             "observation_count": existing.observation_count + seed.observation_count,
             "sample_trace_ids": _cap_trace_ids(existing.sample_trace_ids, seed.sample_trace_ids),
-            "correlation_mode": _stronger_mode(existing.correlation_mode, seed.correlation_mode),
+            "correlation_mode": stronger_correlation_mode(
+                existing.correlation_mode, seed.correlation_mode
+            ),
         }
     )
 
