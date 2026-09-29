@@ -119,6 +119,23 @@ All six cases use the whole-day window D, environment `production`, and captures
 
    Each now also admits `scoped_capture_scopes_v2` under the same conditional rule. The I1 fragment vector and the oracle are unchanged, and I2.5's independently expected full after-`snapshot_id` vector covers both keys.
 
+   **Why `captured_at` is in the key.** It is a disclosed deviation from the approved plan's six-field list. Phase 3 evaluates each admitted source's real `capturedAt`, including a covering source that does **not** contain the Pod (S03, S05). The existing `deployment_captured_pods` state carries `captured_at` only per captured Pod, so without this field that input would be outside the fingerprint.
+4. **Revision advancement.** Persisting the properties is not enough, because the importer bumps the revision only when node, relation or claim content changes (`app/graph/importer.py:954-970`). A scope-only change would therefore alter the new key without moving the fence. In `_import_source_tx`:
+   - (a) Read the source's persisted `capture_*` properties before the `SourceState` write and compare them with the new values. The comparison runs even when the replay decision is a no-op; a replay no-op that changes these properties is **not** a no-op for this rule.
+   - (b) If they differ, first acquire the write lock on the revision singleton (`AipInternalState`), for example with a no-op `SET` on it. Then, still in the same transaction, check whether any `ScopedObservedCallV2` node exists.
+   - (c) If one does, call `bump_revision(tx)`, unless the transaction already bumps.
+
+   Taking the lock before the v2 check serializes this transaction against a concurrent ingestion unit whose first v2 write also bumps the singleton. The import therefore cannot miss a v2 record that commits in the meantime.
+
+   With no v2 present, a scope-only change still does not bump, so no-v2 v0.5 revision behaviour is unchanged. Source removal already bumps unconditionally and deletes `SourceState` (`importer.py:1088`), which drops the source from the key.
+
+   **Required regressions (I2.2 / I2.5):**
+   - a scope-only reimport with v2 present bumps the revision and changes the snapshot;
+   - the same reimport without v2 does not bump the revision;
+   - a replay-no-op scope change is covered;
+   - a concurrent stable read around a scope-only reimport never sees two different `scoped_capture_scopes_v2` values at one revision;
+   - an import that races the first v2 unit bumps the revision.
+
 ## D6 — Ingestion unit and transactions (I2 §6, §7; §17 item 3)
 
 - **Unit:** one decoded `/v1/traces` POST and its `ObservationBatch` form one unit. The unit is committed in **one** `execute_write` with one `bump_revision`, exactly as today (`app/telemetry/aggregator.py:243-248`), and the v1 facts and eligible v2 seeds go in that transaction.
@@ -145,21 +162,48 @@ All six cases use the whole-day window D, environment `production`, and captures
 
 **Availability:** an internal repository reader returns the report. There is no public endpoint in I2; I3/I6 decide exposure.
 
-## D8 — Cutover ledger and legacy-only status (I2 §7.1)
+## D8 — Cutover ledger, durable legacy membership and legacy-only status (I2 §7.1)
+
+**Scope: graph-scoped, one stream per graph.** v1 evidence carries no stream attribution (`evidence:otel:{env}:{day}:{hash}`, B1), so membership can be proven only per graph. In v0.6 an AIP graph has exactly one configured `telemetry.scoped-evidence.stream-id` (D10). Overlapping streams writing one graph are **not supported** in v0.6 and are disclosed as such.
 
 **Ledger:**
-- one internal `ScopedEvidenceCutover` node per `stream_id`;
-- written in the first unit processed with the flag enabled;
-- holds `enabled_at_revision`, `pre_enablement_v1_bucket_count` and `pre_enablement_v1_bucket_digest` (SHA-256 over the sorted, newline-joined v1 `evidence:otel:` IDs that exist before that unit);
-- the full sorted ID list is written to the transition report at cutover;
-- immutable afterwards.
+- One internal `ScopedEvidenceCutover` singleton per graph, with a uniqueness constraint.
+- It is written in the first unit processed with the flag enabled, and holds:
+  - `stream_id`;
+  - `enabled_at_revision`;
+  - `pre_enablement_v1_bucket_count`;
+  - `pre_enablement_v1_bucket_digest`: SHA-256 over the sorted, newline-joined v1 `evidence:otel:` IDs that exist before that unit. It is used as an integrity check of the membership below.
+- Immutable afterwards.
 
-**History states:**
-- A later contribution to a listed bucket makes it *mixed*.
-- A missing ledger means *unknown*, never legacy-by-absence.
-- In the report, mixed and unknown are separate operational diagnostics, not a fourth category.
+**Durable membership:**
+- In the same cutover transaction, one internal `ScopedEvidenceLegacyBucket` node is written per pre-enablement v1 bucket, with a uniqueness constraint on `id`. Each holds:
+  - `id`, which is the v1 evidence ID;
+  - `cutover_revision`;
+  - `mixed_at_revision`, initially `null`.
+- The nodes have no relationships, no `owner_source_ids`, no NL reachability and no canonical-state input.
+- Afterwards, whenever an enabled unit persists **any** v1 contribution, with or without v2, to a bucket that has a membership node, the same transaction sets `mixed_at_revision` if it is still `null`. That bucket is then no longer legacy-only.
+- The membership survives restarts because it lives in the graph and not in process memory.
+- Cost: one node per pre-existing v1 CALLS bucket, disclosed in the I2 completion record's cardinality measurements.
 
-**`LOCALITY_LEGACY_V1_UNSCOPED` is not emitted in v0.6.** Snapshot-bound proof would require ledger state in the canonical state and so change the no-v2 pin. By I2 §7.1's fallback, answers use only `LOCALITY_NO_ELIGIBLE_LOCAL_OBSERVATION` + `LOCALITY_LOCAL_COVERAGE_UNAVAILABLE`.
+**Report classification (D7):**
+
+| Situation | Classification |
+|---|---|
+| Membership node with `mixed_at_revision = null` | `LEGACY_UNSCOPED`, counted in v1 buckets, with the as-of revision |
+| Membership node with `mixed_at_revision` set | *mixed*, an operational diagnostic and not a fourth category |
+| No cutover ledger | *unknown*, never legacy-by-absence |
+| Configured `stream-id` differs from the ledger's | *unknown* for all history, with no second cutover and no reclassification |
+| Membership count or digest does not match the ledger | *unknown* |
+
+**Required regressions (I2.2):**
+- pre-cutover-only;
+- a post-cutover v1 contribution makes a bucket mixed, both when v2 was written and when it was refused;
+- restart, with the membership re-read from the graph;
+- a changed `stream-id` gives unknown;
+- a repeated import leaves membership unchanged;
+- a v1-only bucket plus an unrelated `RuntimeIdentityObservation` stays legacy.
+
+**`LOCALITY_LEGACY_V1_UNSCOPED` is not emitted in v0.6.** Snapshot-bound proof would require ledger or membership state in the canonical state, which would change the no-v2 pin. By I2 §7.1's fallback, answers use only `LOCALITY_NO_ELIGIBLE_LOCAL_OBSERVATION` + `LOCALITY_LOCAL_COVERAGE_UNAVAILABLE`. The membership is operational provenance for the report only.
 
 ## D9 — Assertion and assessment-instance identity (I2 §9; §17 items 2, 5)
 
@@ -202,6 +246,7 @@ No Kubernetes or architecture source revision is ever invented for telemetry.
 | §8.1 scope under the fence (stop condition) | D5 |
 | §6 one POST transaction; §17.3 | D6 |
 | §7 report; §17.4 | D7, D10 |
-| §7.1 legacy-only proof | D8 |
+| §7.1 legacy-only proof; durable membership, restart and stream scope | D8 |
+| §8.1 same-snapshot fence for scope changes | D5 item 4 |
 | §9 identity; §17.2, §17.5 | D9 |
 | §15 I2.1: record the I1 closure SHA | Header |
