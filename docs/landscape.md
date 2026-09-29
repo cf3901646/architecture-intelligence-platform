@@ -2370,6 +2370,12 @@ judgment. Its **Context Engineering** pattern identifies architecture constraint
 API compatibility, ownership, incidents, previous decisions, and policies as context a reviewer
 needs beyond the PR diff.
 
+This directly articulates AIP's customer problem: code repositories alone do not provide all
+the architectural knowledge an authoring or reviewing agent needs. AIP addresses the
+architecture-specific part through reusable, evidence-qualified knowledge and bounded
+projections; the broader organizational knowledge and historical decisions remain adjacent
+domains.
+
 **Why this matters to AIP**
 
 This is a concrete downstream use case for AIP's customer proposition. An authoring and an
@@ -2661,48 +2667,113 @@ and what evidence supports that conclusion?
 
 ## 6. AIP's emerging position
 
-The sources above suggest several adjacent layers, but AIP should retain a narrow semantic center:
+### The customer problem: agent-ready architectural context
+
+The Fall 2026 IT Revolution papers converge on a practical need that makes AIP's customer
+proposition concrete. Davis et al.'s **Context Engineering** pattern calls for engineering
+environments to move beyond repositories of code toward accessible operational knowledge,
+architectural intent, and historical decision context. Cochran et al. identify repeated
+knowledge dependencies and coordination as delivery bottlenecks. Cockcroft et al. describe
+persistent, attributable context as part of the substrate beneath agent decisions.
+
+These are complementary external perspectives, not proof that one product must provide
+all engineering context. AIP's deliberately bounded contribution is:
+
+> **Help coding agents work across multi-service systems without reconstructing architecture.**
+
+Code and search results are source material; they are not themselves qualified architectural
+answers. AIP establishes evidence-qualified Architecture Knowledge once and makes recurring,
+question-specific context available to authoring agents, reviewers, humans, and contextual tools.
+
+### Product hierarchy and integration boundary
 
 ```text
-                         ARCHITECTURAL INTENT
-                       ADRs · Rules · Constraints
-                                  │
-                         Governance systems
-                        e.g. Mneme / guardrails
-                                  │
-                                  ▼
-                             AI AGENTS
-                         Copilot · Claude · ...
-                                  ▲
-                                  │
-                         trusted context
-                                  │
-                                 AIP
-                    Architecture Intelligence
-                                  ▲
-                                  │
-             ┌────────────────────┼────────────────────┐
-             │                    │                    │
-          DECLARED             OBSERVED            FUTURE
-      OpenAPI/AsyncAPI      OpenTelemetry       K8s / code /
-         manifest                               more adapters
+CUSTOMER PROBLEM
+Agent-ready engineering needs reusable architectural context,
+not repeated inference from code and fragmented sources
+                          │
+                          ▼
+CUSTOMER VALUE
+Work across multi-service systems without reconstructing architecture
+                          │
+                          ▼
+PRODUCT CONCEPT
+Moldable Architecture Knowledge
+                          │
+                          ▼
+CORE DOMAIN
+Establish Evidence-Qualified Architecture Knowledge
+applicability · identity/reconciliation · qualification
+provenance/lineage · conflict handling · bounded uncertainty
+                          ▲
+                          │
+HETEROGENEOUS EVIDENCE
+contracts · manifests · configuration · deployment · telemetry
+                          │
+                 qualified knowledge
+                          ▼
+PRODUCT-LEVEL CAPABILITY
+Bounded, deterministic, question-specific projections
+                          │
+            ┌─────────────┴──────────────┐
+            ▼                            ▼
+     Authoring agent              Independent reviewer
+     Human / GT lens              Other contextual consumer
+            └─────────────┬──────────────┘
+                          ▼
+EXTERNAL WORKFLOW / DECISION AUTHORITY
+implementation · testing · review · approval · policy · action
 ```
+
+The diagram separates where knowledge is established from where it is consumed. Graph
+storage, visualization, and MCP/REST transport remain implementation/integration mechanisms;
+public claim meaning, evidence, qualification, applicability, and context are product contracts.
+Consumers may mold the question and representation, not the underlying architectural meaning.
+
+### Separate epistemic and authority paths
+
+Current State is qualified from source-specific evidence. Explicit, attributable Intent has its
+own independent path. An assessment compares the two separately established projections; an
+external review or decision record does not retroactively change either. Decision History linkage
+remains an unscheduled future candidate, not the authority to approve or execute changes.
+Technical architecture topology must not be confused with organizational decision topology.
+
+```text
+Current-State evidence ──> Qualified Current State ──┐
+                                                       ├──> Qualified Assessment (planned)
+Explicit attributable Intent ─> Applicable Intent ───┘
+                                                       │
+                                              downstream consumers
+                                                       │
+                                         review / decision / action
+                                         (externally authoritative)
+```
+
+The papers suggest a useful **workflow-value hypothesis**: a bounded, supported AIP answer
+should reduce repeat cross-source investigation and expert clarification for a coding or
+reviewing agent. Validate that alongside answer correctness, explicit unresolved outcomes,
+setup and maintenance cost; do not claim proven business outcomes from conceptual convergence.
 
 AIP's differentiating epistemic question remains:
 
 > **What architecture can we support from available evidence, and what are the limits of that knowledge?**
 
-Its product-design question is now:
+Its customer-facing product-design question is:
 
-> **Which recurring architecture question can AIP make deterministic next, and how can that answer be
-> molded into the smallest useful bounded context without weakening its evidence or qualification?**
+> **Which recurring architecture question can AIP answer reproducibly so that an agent does
+> not have to reconstruct those premises, and can inspect their evidence and limits?**
 
-This leads to four durable principles:
+Four durable principles follow:
 
 1. **Evidence before inference.**
 2. **Correct but incomplete is better than complete-looking but wrong.**
-3. **Non-observation is not absence.**
-4. **An agent may reason over architecture, but must not become the source of architectural truth.**
+3. **Non-observation is not absence; missing context is not permission to invent facts.**
+4. **An agent may reason over architecture, but must not become its source or approval authority.**
+
+**Roadmap impact:** This strengthens the existing product proposition and validation wedge;
+it does not add scope or reorder v0.6 Locality, v0.7 API-Aware Current State, v0.8 Intent, or
+v0.9 Assessment. AIP is not a general context repository, PR reviewer, CDI platform, or
+organizational governance engine.
 
 ---
 
