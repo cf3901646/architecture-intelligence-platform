@@ -6,7 +6,7 @@
 >
 > Inclusion does not imply endorsement, dependency, or roadmap commitment. External ideas should influence AIP only where they survive AIP's own evidence, semantics, and validation requirements.
 
-_Last reviewed: 2026-09-24_
+_Last reviewed: 2026-09-29_
 
 ## AIP anchor
 
@@ -66,6 +66,7 @@ promises, temporal context, and explicit system intent without collapsing them i
 
 [OpenTelemetry](#opentelemetry-semantic-conventions) ·
 [OpenAPI as deterministic evidence](#kin-lane--openapi-as-a-deterministic-artifact-in-an-ai-generated-world) ·
+[API knowledge beyond API management](#adorsys--understanding-api-landscapes-not-just-managing-them) ·
 [Structurizr/C4](#structurizrc4--declared-architecture-models-and-views) ·
 [Executable architecture rules](#archunit-and-jqassistant--executable-architecture-rules) ·
 [Backstage](#backstage-software-catalog) ·
@@ -94,7 +95,7 @@ visualization, provenance, or retrieval?
 [Agent API Profile](#christian-posta--agent-api-profile) ·
 [MCP](#model-context-protocol-mcp) ·
 [Procedural Graphs](#lu-et-al--procedural-graphs) ·
-[Agent-ready traceability](#daniel-kocot--agent-ready-apis-traceability-and-preserved-intent) ·
+[Agent-ready traceability and API boundaries](#daniel-kocot--agent-ready-apis-traceability-and-preserved-intent) ·
 [BootUI](#bootui--runtime-context-for-coding-agents) ·
 [Deterministic integration](#kin-lane--agents-should-write-code-to-integrate-not-infer-it-at-runtime) ·
 [UI Atlas](#ui-atlas--ai-successors) ·
@@ -481,6 +482,48 @@ separate from the base description. A future AIP importer would need to retain t
 each overlay as independently identifiable sources, record their digests and application order, and
 make failed targets or conflicting changes explicit. The effective overlaid document would still be
 declared evidence, not observed behavior or automatically authoritative intent.
+
+### adorsys — Understanding API Landscapes, Not Just Managing Them
+
+**Sources**
+
+- [Understanding API Landscapes, Not Just Managing Them](https://adorsys.com/en/techradar/understanding-api-landscapes-not-just-managing-them/)
+- [The API Is Not the Boundary](https://adorsys.com/en/techradar/the-api-is-not-the-boundary/)
+
+**Core idea**
+
+An increasingly heterogeneous API landscape cannot be understood solely through the operational
+views of individual API platforms. Contracts, exposure, consumers, actual usage, ownership, and
+dependencies need traceable cross-source relationships. A graph-based knowledge layer is one
+possible technical implementation; the enduring architectural value lies in the model and the
+meaning of its relationships, not the database or its visualization.
+
+**Why this matters to AIP**
+
+This is external support for the already planned **v0.7 — API-Aware Current State**, not a new
+roadmap proposal. AIP's bounded question is: *How are APIs exposed and consumed, and what can the
+available evidence establish about those relationships?* Its first validation correlates configured
+consumer/API access with independently observed consumer-attributed usage in an explicit context.
+
+The source-neutral model must distinguish contract/version, operation, gateway route/service,
+application service, consumer, configured access, and observed interaction. Identifying that
+artifacts are related does not establish that they are the same entity. Cross-source transformations
+must retain the claim kind, provenance, applicability, qualification, and any lost or unresolved
+semantics. In particular:
+
+```text
+configured API access != observed API usage
+API endpoint != application, domain, business, or authorization boundary
+connected graph != evidence-qualified architectural answer
+```
+
+**AIP stance and roadmap effect**
+
+This strengthens the rationale and validation criteria for the existing v0.7 slice; it does not
+warrant a new release, a comprehensive API inventory, automatic ownership/capability inference, or
+gateway-specific canonical terminology. Explicit architectural Intent remains independently
+established in v0.8 and Current↔Intent assessment in v0.9. The research source is not semantic
+authority for AIP; qualification against real, independently authored evidence is still required.
 
 ### Structurizr/C4 — Declared Architecture Models and Views
 
@@ -1198,6 +1241,11 @@ qualification.
 
 #### AIP stance
 
+The existing reference integration (including negotiated MCP, snapshot-bound evidence drill-down,
+GT-hosted agent exploration, and bounded ephemeral micro-tools) is supporting validation of the
+consumer boundary, not a reason to add GT as an AIP dependency. An API exposure/consumption view
+would be another question-specific view over AIP knowledge, not a separate source of truth.
+
 **Moldable Architecture Knowledge is now a core AIP product concept.** Glamorous Toolkit remains a
 reference integration and design influence, not AIP's implementation platform and not a reason to
 expand a release's semantic scope.
@@ -1263,7 +1311,9 @@ an architecture fact, reconcile an identity, qualify source evidence, determine 
 establish Intent. Jev therefore belongs beside AIP as a possible reasoning primitive, not inside
 AIP's knowledge-establishment authority.
 
-This is a landscape reference, not an AIP dependency or roadmap commitment.
+This is a landscape reference, not an AIP dependency or roadmap commitment. For API-aware
+questions as elsewhere, a confident model classification of a consumer/API relationship cannot
+replace independently qualified configuration, identity, and runtime evidence.
 
 ### Davletiyarov, Khan, and Bartolini — Symbolic Separation
 
@@ -1587,6 +1637,14 @@ observed runtime path
         !=
 business outcome
 ```
+
+The related [adorsys API-landscape research](#adorsys--understanding-api-landscapes-not-just-managing-them)
+adds a Current-State dimension: an API interface is not automatically a business, deployment, or
+authorization boundary. API discovery, executable contracts, configured access, observed invocation,
+and execution authority are different claims. Agent discoverability does not grant execution
+permission, and a configured gateway consumer does not prove observed usage. This sharpens the
+existing v0.7 identity/claim-kind boundaries without adding policy enforcement or business
+capability inference to that release.
 
 Kocot's work also reinforces the boundary between storage and context:
 
@@ -2545,6 +2603,23 @@ This leads to four durable principles:
 4. **An agent may reason over architecture, but must not become the source of architectural truth.**
 
 ---
+
+### 2026-09-29 — API landscape landmark impact assessment
+
+- **Product strategy:** no change to AIP's customer proposition, Moldable Architecture Knowledge
+  concept, or evidence-qualified Core Domain. The new research clarifies the distinction between
+  an API-management operating view and traceable architectural knowledge; graph storage and
+  visualization remain replaceable implementation details.
+- **Roadmap:** no new release or reordered capability. ROADMAP.md already plans v0.7
+  API-Aware Current State with these two adorsys articles as external inputs, the configured-versus-
+  observed consumer/API question, real-source validation and explicit coverage/identity limitations.
+  v0.8 independently establishes Intent; v0.9 compares qualified Current State and applicable Intent.
+- **Landmark consolidation:** the API knowledge-layer discussion is one new landscape entry;
+  API-boundary/execution-governance distinctions enrich the existing Kocot entry. GT and TypeSafe/Jev
+  already have detailed entries; the additions above preserve their respective consumer and
+  epistemic boundaries rather than creating duplicates.
+- **Decision:** documentation-only landscape clarification. No scope expansion, new acceptance gate,
+  implementation dependency, or change to ROADMAP.md/product doctrine is justified by these sources.
 
 ## 7. How to use this document
 
