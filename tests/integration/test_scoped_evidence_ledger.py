@@ -33,6 +33,7 @@ from app.telemetry.scoped_ledger import (
     CATEGORY_WRITTEN,
     CUTOVER_ID,
     TRANSITION_REPORT_SCHEMA,
+    TransitionReportUnstable,
     read_transition_report,
 )
 from tests.integration.test_scoped_evidence_persistence import BASE, _batch, _seed
@@ -250,6 +251,55 @@ def test_the_report_is_rebuilt_from_the_graph_alone_by_a_fresh_connection(
 
     assert after == before
     assert before.schema == TRANSITION_REPORT_SCHEMA == "aip-scoped-evidence-transition-report/1"
+
+
+# --- a report is only as-of the revision it is consistent with ---------------------------------
+
+
+def test_a_unit_committing_mid_read_is_never_reported_under_a_stale_revision(graph, session):
+    _unit(graph, _seed())
+    calls: list[int] = []
+
+    def revision_fn() -> int:
+        revision = read_revision(session)
+        calls.append(revision)
+        if len(calls) == 1:
+            # A POST commits after the first revision read and before the report's queries.
+            _unit(graph, _seed(pod="P2", trace="b" * 32))
+        return revision
+
+    report = read_transition_report(session, STREAM, read_revision_fn=revision_fn)
+
+    current = read_revision(session)
+    assert calls == [current - 1, current, current, current]  # attempt 1 discarded, attempt 2 kept
+    assert report.as_of_revision == current
+    assert sum(r.count for r in report.scoped_v2_written) == 2
+    assert max(r.last_revision for r in report.scoped_v2_written) <= report.as_of_revision
+
+
+def test_a_graph_that_never_settles_fails_closed_instead_of_reporting(graph, session):
+    _unit(graph, _seed())
+    moves = iter(range(1000))
+
+    def always_moving() -> int:
+        _unit(graph, _seed(pod=f"P{next(moves)}", trace="c" * 32))
+        return read_revision(session)
+
+    with pytest.raises(TransitionReportUnstable, match="after 3 attempts"):
+        read_transition_report(session, STREAM, read_revision_fn=always_moving)
+
+
+def test_a_quiet_graph_is_read_once_with_two_revision_reads(graph, session):
+    _unit(graph, _seed())
+    calls: list[int] = []
+
+    def counting() -> int:
+        calls.append(read_revision(session))
+        return calls[-1]
+
+    report = read_transition_report(session, STREAM, read_revision_fn=counting)
+
+    assert len(calls) == 2 and report.as_of_revision == calls[0]
 
 
 # --- unknown history ---------------------------------------------------------------------------

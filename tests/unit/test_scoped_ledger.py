@@ -101,7 +101,7 @@ def test_the_primary_cause_is_always_one_of_the_refusals_own_reasons():
 
 
 def test_the_membership_digest_matches_an_independent_sha256sum_and_ignores_input_order():
-    # printf '%s' 'evidence:otel:a\nevidence:otel:b' | sha256sum
+    # printf 'evidence:otel:a\nevidence:otel:b' | sha256sum   (printf turns \n into a real newline)
     expected = "54ce1c50f4a55fe1e98ed06914c28ad29a63a69cd82e62823a0841b7cfca36c0"
 
     assert ids.legacy_bucket_digest(["evidence:otel:a", "evidence:otel:b"]) == expected

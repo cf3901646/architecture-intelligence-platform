@@ -21,6 +21,7 @@ import hashlib
 import json
 import logging
 from collections import Counter
+from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Literal
 
@@ -283,11 +284,41 @@ class TransitionReport:
     scoped_v2_refused: tuple[CounterRow, ...]
 
 
-def read_transition_report(session: neo4j.Session, stream_id: str) -> TransitionReport:
+class TransitionReportUnstable(RuntimeError):
+    """The graph kept changing while the report was read, so no consistent as-of revision exists.
+    Fails closed, like `app.architecture_intelligence.repository.SnapshotUnstable`."""
+
+
+def read_transition_report(
+    session: neo4j.Session,
+    stream_id: str,
+    *,
+    read_revision_fn: Callable[[], int] | None = None,
+    max_attempts: int = 3,
+) -> TransitionReport:
     """Builds the report for one stream from the graph alone (so it survives a restart). The
     counters are exact for the stream; the legacy classification is derived, and unknown whenever
-    the cutover ledger is absent, belongs to another stream, or no longer matches the membership."""
-    as_of_revision = read_revision(session)
+    the cutover ledger is absent, belongs to another stream, or no longer matches the membership.
+
+    The ledger, membership and counters are read by separate read-committed queries, so a unit
+    could commit between them. The read therefore follows the stable-read rule of the snapshot
+    reader: read the revision, read everything, read the revision again, accept only if the two
+    match (every unit commits together with its own bump), otherwise discard and retry - and fail
+    closed after `max_attempts`. That is what makes `as_of_revision` true of every figure reported.
+    `read_revision_fn` exists so the race can be tested deterministically.
+    """
+    revision_of = read_revision_fn or (lambda: read_revision(session))
+    for _ in range(max_attempts):
+        revision_before = revision_of()
+        report = _read_report_once(session, stream_id, revision_before)
+        if revision_of() == revision_before:
+            return report
+    raise TransitionReportUnstable(f"no consistent report after {max_attempts} attempts")
+
+
+def _read_report_once(
+    session: neo4j.Session, stream_id: str, as_of_revision: int
+) -> TransitionReport:
     ledger = session.run(_READ_CUTOVER_QUERY, id=CUTOVER_ID).single()
     membership = [(r["id"], r["mixed_at_revision"]) for r in session.run(_READ_MEMBERSHIP_QUERY)]
 
