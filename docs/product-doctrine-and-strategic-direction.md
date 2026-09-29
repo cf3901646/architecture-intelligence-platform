@@ -4,6 +4,7 @@
 **Project:** Architecture Intelligence Platform (AIP)<br>
 **Date:** 2026-09-21<br>
 **Roadmap-alignment revision:** 2026-09-29<br>
+**Product-positioning revision:** 2026-09-29 — agent-ready architectural Context Engineering<br>
 **Scope:** Product doctrine, target wedge, semantic model, Moldable Architecture Knowledge, strategic direction, and roadmap alignment<br>
 **Current implementation center:** Evidence-qualified Current State and read-only agent context; v0.5 broadens discovery and public Architecture Knowledge access<br>
 **Important:** ROADMAP.md assigns planned themes to v0.6–v0.9; detailed scope remains subject to release-specific specifications and qualification gates.
@@ -15,6 +16,20 @@
 AIP's customer value proposition is:
 
 > **Help coding agents work across multi-service systems without reconstructing architecture.**
+
+The customer problem is **agent-ready architectural context**. A repository of code alone cannot
+reliably provide the operational and architectural knowledge required to change multi-service
+systems: contracts, configuration, deployments, observations, constraints and previous decisions
+are dispersed across sources and people. Without reusable, attributable context, every authoring
+or reviewing agent must reconstruct architectural premises, often without knowing which are
+supported, incomplete, conflicting, or stale.
+
+Davis et al.'s *Context Engineering* pattern in *Agentic AI and Code Reviews* (IT Revolution,
+Fall 2026, pp. 17–19) states the broader need for engineering environments to make operational
+knowledge, architectural intent and decision history accessible. **AIP supplies the
+architecture-specific, evidence-qualified part of that environment**, not generic organizational
+memory or the authority to approve decisions. Current State, future explicit Intent and external
+Decision History remain distinct knowledge domains.
 
 Its core product concept is **Moldable Architecture Knowledge**: establish qualified Architecture
 Knowledge once, then make small, deterministic, question-specific projections inexpensive to
@@ -40,9 +55,11 @@ AIP's differentiation has two layers.
 - **moldability** — allow question, selection, composition, and representation to vary without
   changing the established meaning underneath.
 
-Its purpose is not to make agents more autonomous. Its purpose is to give them architecture premises
-they do not have to reconstruct or invent, and to make recurring architecture questions cheaper to
-turn into deterministic tools rather than repeated probabilistic inference.
+Its purpose is not to make agents more autonomous. Its purpose is to make architectural
+understanding **reusable rather than repeatedly reconstructed**. Context delivery is the
+customer-facing job; establishing precisely which claims the evidence supports is the Core Domain.
+A larger prompt, generic document retrieval, or a graph visualization alone does not provide that
+qualification.
 
 The strategic hierarchy is:
 
@@ -320,7 +337,11 @@ incomplete telemetry.
 
 The primary customer need is therefore not "buy an architecture graph" or "buy more agent
 autonomy." It is to obtain reliable, bounded architecture knowledge at the point where an agent must
-reason across service boundaries.
+reason across service boundaries. AIP is an architecture-specific **Context Engineering**
+capability: make established knowledge reusable at the moment of development and review rather
+than making each agent infer it again. Operational runbooks, incident history, policy enforcement
+and organizational decision records can be relevant adjacent context without automatically
+becoming AIP-owned sources or authority.
 
 ### Secondary users
 
@@ -342,6 +363,12 @@ The first high-value workflow remains:
 > **Before a coding agent changes a service, provide bounded, evidence-qualified dependency context;
 > after the change is deployed or otherwise observable, independently establish the resulting
 > architecture state again.**
+
+This is a question-specific context workflow: *What should be inspected before editing this
+service?* An AIP answer must expose supported relationships, evidence, snapshot/observation
+context and limits. An authoring agent and an independent reviewing agent can consult the same
+premises, but review findings, policy judgments and decisions do not thereby become AIP
+Architecture Knowledge.
 
 Conceptually:
 
@@ -497,6 +524,10 @@ The current hypotheses are:
     become Architecture Knowledge.**
 11. **Let REST, MCP, and external moldable tools consume the same semantic knowledge without
     duplicating qualification logic.**
+12. **Reduce repeated manual cross-source investigation and dependence on individual experts for
+    recurring architecture questions, without concealing unresolved evidence.**
+13. **Enable authors and independent reviewers to inspect the same qualified architecture premises
+    without treating either agent's review judgment as an established architecture fact.**
 
 These are hypotheses to validate, not claims that AIP has already demonstrated these business
 outcomes.
@@ -557,6 +588,8 @@ For pilot users, measure:
 ```text
 time to answer "what does this service depend on?"
 time spent reconstructing architecture during review
+repeated cross-source searches and expert clarification for the same architecture question
+author/reviewer ability to resolve the same evidence and understand unresolved limitations
 unsupported assumptions surfaced before implementation
 post-change discrepancies surfaced independently
 architecture-sensitive agent tasks that query AIP before acting
@@ -583,7 +616,10 @@ Measure jointly:
 - independently detected post-change discrepancies and false alarms.
 
 A lower false-claim rate achieved only by returning more unresolved answers does not establish product
-value. Reduced review time must be evaluated against the added maintenance burden.
+value. Reduced investigation/review time must be evaluated against the added maintenance burden.
+Compare workflows with equivalent source access, measuring both time to a useful qualified answer
+and the proportion of questions that remain unresolved. A faster but misleading answer is not
+product success.
 
 Pilot criteria must support an explicit continue, narrow, defer, or stop decision. Planned releases
 remain subject to these product-value gates as well as semantic and implementation qualification;
@@ -1670,6 +1706,18 @@ insufficient to reproduce why AIP produced a specific result.
 
 ## 20. Agent-Ready Structured Context
 
+**Context Engineering is the customer-facing application of AIP's Core Domain.** An agent-ready
+engineering environment needs accessible architectural premises whose source, claim meaning,
+applicability, qualification, and limitations remain inspectable. AIP supplies this
+architecture-specific substrate as **bounded, deterministic, moldable context**, without assuming
+responsibility for general agent memory, task reasoning or organizational execution governance.
+
+The Context Engineering pattern in Davis et al., *Agentic AI and Code Reviews* (Fall 2026,
+pp. 17–19) also calls for operational history, prior decisions, policies and ownership. That is
+the broader engineering-context need, not evidence that AIP currently ingests every such source.
+Planned explicit Intent (v0.8), separate qualified Assessment (v0.9), and unscheduled externally
+sourced Decision History preserve distinct semantic and authority paths.
+
 AIP should become more agent-ready by assembling **bounded, deterministic, moldable context**, not
 by taking over task reasoning.
 
@@ -2618,7 +2666,17 @@ AIP should not design migration execution before Current State and any future In
 
 ### Current short positioning
 
-> **AIP gives coding agents trustworthy Architecture Knowledge they do not have to reconstruct.**
+> **AIP gives coding agents evidence-qualified Architecture Knowledge they do not have to reconstruct.**
+
+### Customer problem: agent-ready architecture context
+
+> **Code repositories alone do not provide the architectural context agents need to change
+> multi-service systems safely. AIP makes that knowledge reusable and inspectable instead of
+> asking every authoring or reviewing agent to infer it again.**
+
+This is AIP's architecture-specific contribution to Context Engineering. It does not imply that
+AIP stores all operational knowledge, owns historical decisions, governs agents, or independently
+proves a software change safe.
 
 ### Current product positioning
 
@@ -2640,8 +2698,9 @@ AIP should not design migration execution before Current State and any future In
 
 ### Agent-readiness statement
 
-> **AIP is not an agent platform. It is the evidence-qualified Architecture Knowledge layer agents
-> query and mold into contextual views without becoming the source of the knowledge.**
+> **AIP is not an agent platform or general organizational memory system. It establishes the
+> evidence-qualified Architecture Knowledge that authoring and reviewing agents can query and mold
+> into contextual views without becoming the source of that knowledge.**
 
 ### Future product proposition — strategic hypothesis
 
