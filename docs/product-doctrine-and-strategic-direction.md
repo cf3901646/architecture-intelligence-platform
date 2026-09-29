@@ -1094,7 +1094,7 @@ The invariant is:
 
 ---
 
-### 14.1 API Landscape Current State — planned v0.7
+### 14.1 API-Aware Current State — planned v0.7
 
 AIP's planned API Landscape capability applies the **same Current-State qualification path** to
 how APIs are exposed and consumed, rather than creating a vendor-specific gateway graph or a
@@ -2211,7 +2211,7 @@ v0.6 — Locality-Aware Current State
   "Where is this dependency established?"
   "Does this relation differ by supported locality?"
 
-v0.7 — API Landscape Current State
+v0.7 — API-Aware Current State
   Product question:
   "How are APIs exposed and consumed, and what can the available evidence establish about
    those relationships?"
