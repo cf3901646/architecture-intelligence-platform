@@ -182,7 +182,16 @@ def test_the_default_page_size_is_the_frozen_500():
     assert DEFAULT_PAGE_SIZE == 500
 
 
-@pytest.mark.parametrize("limit", [0, -1])
-def test_a_non_positive_limit_is_rejected(session, limit):
-    with pytest.raises(ValueError, match="at least 1"):
+@pytest.mark.parametrize("limit", [0, -1, DEFAULT_PAGE_SIZE + 1, 1_000_000])
+def test_a_limit_outside_the_frozen_page_bound_is_rejected(session, limit):
+    with pytest.raises(ValueError, match="between 1 and 500"):
         read_scoped_observed_calls(session, subject_id=CALLER, limit=limit)
+
+
+def test_the_full_page_size_is_accepted_and_bounds_the_result(session):
+    for i in range(3):
+        _store(session, _record(pod=f"P{i}"))
+
+    page = read_scoped_observed_calls(session, subject_id=CALLER, limit=DEFAULT_PAGE_SIZE)
+
+    assert len(page.records) == 3 and page.truncated is False

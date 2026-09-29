@@ -62,9 +62,12 @@ def read_scoped_observed_calls(
     limit: int = DEFAULT_PAGE_SIZE,
 ) -> ScopedCallPage:
     """Reads up to `limit` v2 records for one caller Service (and optionally one Operation), after
-    `after_id`, in ascending `id` order. Fetches one extra row to decide `truncated` exactly."""
-    if limit < 1:
-        raise ValueError("limit must be at least 1")
+    `after_id`, in ascending `id` order. Fetches one extra row to decide `truncated` exactly.
+
+    `limit` may not exceed the frozen page size (D3): a larger value is rejected, not silently
+    capped, so a caller can never bypass the bound and always sees `truncated` for the rest."""
+    if not 1 <= limit <= DEFAULT_PAGE_SIZE:
+        raise ValueError(f"limit must be between 1 and {DEFAULT_PAGE_SIZE}")
     rows = list(
         runner.run(
             _READ_QUERY,
