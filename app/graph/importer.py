@@ -21,7 +21,7 @@ from app.graph.import_stats import (
     TombstoneDecision,
 )
 from app.graph.repository import open_session
-from app.graph.revision_fence import bump_revision
+from app.graph.revision_fence import bump_revision, lock_revision
 from app.graph.schema import ensure_schema
 from app.graph_schema.registry import RELATIONS
 from app.ingestion.orchestrator import (
@@ -43,6 +43,7 @@ from app.sources.model import (
     FilesystemSourceConfig,
     IngestionDiagnostic,
     IngestionResult,
+    KubernetesCaptureScope,
     KubernetesSourceConfig,
     NotSupplied,
     SourceInstanceId,
@@ -216,7 +217,12 @@ _EXPIRE_RELATIONS_QUERY = (
 _READ_SOURCE_STATE_QUERY = (
     "MATCH (s:SourceState {source_instance_id: $source_instance_id}) "
     "RETURN s.semantic_input_digest AS semantic_input_digest, "
-    "s.scope_definition_digest AS scope_definition_digest"
+    "s.scope_definition_digest AS scope_definition_digest, "
+    "s.capture_scope_namespaces AS capture_scope_namespaces, "
+    "s.capture_cluster_uid AS capture_cluster_uid, "
+    "s.capture_revision AS capture_revision, "
+    "s.capture_evidence_mode AS capture_evidence_mode, "
+    "s.capture_captured_at AS capture_captured_at"
 )
 _WRITE_SOURCE_STATE_QUERY = (
     "MERGE (s:SourceState {source_instance_id: $source_instance_id}) "
@@ -224,6 +230,17 @@ _WRITE_SOURCE_STATE_QUERY = (
     "s.scope_definition_digest = $scope_definition_digest, "
     "s.discovery_scope_id = $discovery_scope_id"
 )
+# v0.6.0 I2.2d (decision record D5): what an accepted Kubernetes envelope says about its capture,
+# kept on the source's SourceState so it is readable under the revision fence. Written only for a
+# source that carries a capture (never for a filesystem source, and never as nulls), and dropped
+# with the node when the source is removed.
+_WRITE_CAPTURE_SCOPE_QUERY = (
+    "MATCH (s:SourceState {source_instance_id: $source_instance_id}) "
+    "SET s.capture_scope_namespaces = $namespaces, s.capture_cluster_uid = $cluster_uid, "
+    "s.capture_revision = $revision, s.capture_evidence_mode = $evidence_mode, "
+    "s.capture_captured_at = $captured_at"
+)
+_ANY_SCOPED_OBSERVED_CALL_QUERY = "MATCH (v:ScopedObservedCallV2) RETURN v.id AS id LIMIT 1"
 _READ_SOURCE_STATES_FOR_SCOPE_QUERY = (
     "MATCH (s:SourceState {discovery_scope_id: $discovery_scope_id}) "
     "RETURN s.source_instance_id AS source_instance_id, "
@@ -644,6 +661,7 @@ def import_source(
     semantic_input_digest: str,
     discovery_scope_id: str,
     scope_definition_digest: str,
+    capture_scope: KubernetesCaptureScope | None = None,
 ) -> SourceImportStats:
     """Transactionally MERGEs one source instance's facts and expires its stale ones, applying the
     I1 spec §5.4 replay decision against this source's own previously committed state. Public
@@ -659,6 +677,42 @@ def import_source(
         semantic_input_digest=semantic_input_digest,
         discovery_scope_id=discovery_scope_id,
         scope_definition_digest=scope_definition_digest,
+        capture_scope=capture_scope,
+    )
+
+
+def _capture_properties(record: neo4j.Record | None) -> tuple | None:
+    """The five persisted capture properties of a committed SourceState, or None if it has none
+    (no SourceState yet, or a source that never carried a capture)."""
+    if record is None or record["capture_cluster_uid"] is None:
+        return None
+    return (
+        tuple(record["capture_scope_namespaces"] or ()),
+        record["capture_cluster_uid"],
+        record["capture_revision"],
+        record["capture_evidence_mode"],
+        record["capture_captured_at"],
+    )
+
+
+def _write_capture_scope(
+    tx: neo4j.ManagedTransaction, source_instance_id: str, capture_scope: KubernetesCaptureScope
+) -> tuple:
+    tx.run(
+        _WRITE_CAPTURE_SCOPE_QUERY,
+        source_instance_id=source_instance_id,
+        namespaces=sorted(capture_scope.namespaces),
+        cluster_uid=capture_scope.cluster_uid,
+        revision=capture_scope.revision,
+        evidence_mode=capture_scope.evidence_mode,
+        captured_at=capture_scope.captured_at,
+    )
+    return (
+        tuple(sorted(capture_scope.namespaces)),
+        capture_scope.cluster_uid,
+        capture_scope.revision,
+        capture_scope.evidence_mode,
+        capture_scope.captured_at,
     )
 
 
@@ -679,6 +733,7 @@ def _import_source_tx(
     run_source_ids: AbstractSet[str] | None = None,
     run_node_emitters: Mapping[str, AbstractSet[str]] | None = None,
     run_relation_emitters: Mapping[str, AbstractSet[str]] | None = None,
+    capture_scope: KubernetesCaptureScope | None = None,
 ) -> SourceImportStats:
     """`run_source_ids`/`run_node_emitters`/`run_relation_emitters` describe the whole discovery run
     (every source reconciled in it, and which of them emits each node id and relation key), so a
@@ -703,6 +758,7 @@ def _import_source_tx(
     committed = tx.run(_READ_SOURCE_STATE_QUERY, source_instance_id=source_instance_id).single()
     committed_semantic_input_digest = committed["semantic_input_digest"] if committed else None
     committed_scope_definition_digest = committed["scope_definition_digest"] if committed else None
+    committed_capture = _capture_properties(committed)
 
     replay_decision = classify_replay_case(
         load_or_reevaluation_successful=True,
@@ -803,6 +859,9 @@ def _import_source_tx(
         scope_definition_digest=scope_definition_digest,
         discovery_scope_id=discovery_scope_id,
     )
+    new_capture = None
+    if capture_scope is not None:
+        new_capture = _write_capture_scope(tx, source_instance_id, capture_scope)
 
     nodes_after = _snapshot_node_props(tx, new_node_ids)
     relations_after = _snapshot_relation_props(tx, new_relation_keys)
@@ -823,6 +882,17 @@ def _import_source_tx(
     graph_revision_advanced = replay_decision.graph_revision_advance_possible and not is_no_op
     if graph_revision_advanced:
         bump_revision(tx)
+    elif new_capture is not None and new_capture != committed_capture:
+        # v0.6.0 I2.2d (decision record D5 item 4): the capture's own properties feed the scoped
+        # snapshot key once v2 records exist, but they are not part of the semantic input digest, so
+        # a scope-, revision- or capturedAt-only change can be a replay no-op that would otherwise
+        # leave the fence where it was. Take the fence lock BEFORE looking for v2, so a concurrent
+        # unit writing the first v2 record cannot slip in unseen; with no v2 record nothing is
+        # visible to advance and v0.5 behaviour is unchanged.
+        lock_revision(tx)
+        if tx.run(_ANY_SCOPED_OBSERVED_CALL_QUERY).single() is not None:
+            bump_revision(tx)
+            graph_revision_advanced = True
 
     # Canonical effects by identity. Added-vs-retained is decided from the pre-run snapshot, not
     # from `node_plan`: in `_import_all_sources_tx` every source's nodes are pre-merged (with their
@@ -1145,6 +1215,9 @@ def _import_all_sources_tx(
             run_source_ids=frozenset(run_result.source_outcomes) | set(removed_source_instance_ids),
             run_node_emitters=run_node_emitters,
             run_relation_emitters=run_relation_emitters,
+            capture_scope=(
+                source_outcome.descriptor.capture_scope if source_outcome.descriptor else None
+            ),
         )
 
     # Decided before any is removed, so a claim several removed sources shared expires for each.
