@@ -268,6 +268,21 @@ These are owner decisions taken while planning I2.3 (selected-capture applicabil
 
 Phase 1 (the request preflight) terminates the whole request. That covers an unadmitted relation, an unadmitted dimension (only `cluster`, `namespace` and `workload` are admitted), and a date-time bound (L24, L25). Any other malformed or reversed window is a validation refusal (matrix §13). Until I2.5 adds the conditional keys, the `snapshot_id` of an I2.3 read does not move on a v2-only or scope-only change. The result's pair lineage carries the source revision and `capturedAt`.
 
+## D14 — I2.4 clarifications (added in I2.4a; additive, D1–D13 unchanged)
+
+These are owner decisions taken while planning I2.4 (the qualified local assessment). They complete D9, whose vectors D11 requires to be frozen before the I2.4 implementation. The frozen vectors are in [`i2-vectors/local-assessment-id.json`](i2-vectors/local-assessment-id.json). They were authored by hand and hashed with `sha256sum`, and `tests/unit/test_v060_i2_assessment_vectors.py` checks them with the standard library only.
+
+| # | Clarification |
+|---|---|
+| D14.1 | **Workload in the assertion ID.** `kind` is the captured Kubernetes kind exactly (`Deployment`, `StatefulSet` or `DaemonSet`, as `InfrastructureEntity.resource_kind` stores it). `uid` is the Workload's API-server UID from the same source's captured contribution. A resolved Workload without a captured UID gets **no** assertion ID and is reported as a candidate limitation. |
+| D14.2 | **Assessment-instance inputs.** `capture_revisions` is the list of `{source_instance_id, revision}` of every supporting source, sorted by `(source_instance_id, revision)`. A bare revision string could collide across sources. `rules` is the list of `{id, version}`, sorted by `(id, version)`, with exactly four entries. Two already exist: `otel-calls-scoped-evidence-v2-key`/1 and `otel-client-caller-attribution`/1. Two are new: `scoped-caller-locality-applicability`/1 (the I2.3 evaluator) and `declared-observed-qualification`/1 (the shared kernel `app/qualification/declared_observed.py`, which gets this constant with no behaviour change). |
+| D14.3 | **Grouping.** There is one assertion per (caller Service, Operation, environment, window, Workload identity). Every `APPLICABLE` candidate on the page with that key contributes its v2 ID to the assertion's observation (sorted and distinct, with fact bounds `min(first_seen)` and `max(last_seen)`) and its supporting sources to the selected capture. So several Pods or days of one Workload give one assertion (L33a, vector A02), and two Workloads give two (L27a, L33b). v2 IDs are lineage and never part of the key. |
+| D14.4 | **Qualification input (I2 §10).** The shared kernel `qualify_relation` receives two things. First, the **DECLARED** evidence IDs of the legacy `(caller)-[:CALLS]->(exact Operation)` edge, selected with `matches_declared_evidence`. Second, the assertion's v2 records as OBSERVED rows (environment, `last_seen`). The edge's v1 OBSERVED IDs are never passed (L23), and neither is another Operation's declaration (L22b). Every assertion has v2, so the result is only `CONFIRMED` or `OBSERVED_ONLY`. A guard rejects any other value, so a local `NOT_OBSERVED_IN_WINDOW` cannot be emitted. |
+| D14.5 | **Answer level (I1 §10.2).** With no positive assertion, the answer is `INSUFFICIENT_EVIDENCE` [`LOCALITY_LOCAL_COVERAGE_UNAVAILABLE`, `LOCALITY_NO_ELIGIBLE_LOCAL_OBSERVATION`] (dossier interpretation 1). Every non-positive candidate stays a limitation keyed by its v2 ID and `snapshot_id`, with its I2.3 summary and pairs. With positive assertions, coverage is always "local Workload-level coverage unavailable". `LOCALITY_LEGACY_V1_UNSCOPED` is never emitted (D8), so dossier row L05b is unreachable in v0.6. |
+| D14.6 | **Current State only (L30).** v0.6 has no Intent or narrative input (`app.intent` is natural-language question routing). L30 holds structurally: the request and assessment types carry no narrative field, and the assessment is a pure function of the fenced read and the request. |
+| D14.7 | **Snapshot binding.** The instance ID binds the `snapshot_id` of the stable read that produced the assessment. That ID is known only after the read, so both IDs are computed afterwards, as the deployment IDs are. Until I2.5 adds the conditional keys, that `snapshot_id` does not yet include v2 or the capture scopes. |
+| D14.8 | **Bounds.** One call assesses one I2.3 candidate page (at most 500, D3), and passes `truncated` and the continuation through. On a truncated page, an assertion may list only part of its v2 lineage. Its ID is unaffected, and it is marked `lineage_complete = false`. |
+
 ## Traceability
 
 | I2 requirement | Decision |
@@ -284,3 +299,4 @@ Phase 1 (the request preflight) terminates the whole request. That covers an una
 | §15 I2.1: record the I1 closure SHA | Header |
 | §15 I2.2: implementation details left to I2.2 | D12 |
 | §8.1, §13, §15 I2.3: applicability details left to I2.3 (CAP-AMB/CAP-CONF, phase collection, selector, roll-up reasons) | D13 |
+| §9, §10, §17.2/§17.5, D11: assertion/instance encodings, frozen vectors, grouping, qualification input, answer level | D14 |
