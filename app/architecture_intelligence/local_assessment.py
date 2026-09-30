@@ -223,6 +223,12 @@ def _aware(value: datetime) -> datetime:
     return value if value.tzinfo is not None else value.replace(tzinfo=UTC)
 
 
+def _workload_identity(workload: CapturedWorkload) -> tuple[str, str, str, str]:
+    """The D14.1 Workload fields of the assertion id, in their canonical order."""
+    assert workload.uid is not None
+    return (workload.cluster_uid, workload.namespace, workload.kind, workload.uid)
+
+
 def _limitation(candidate: CandidateResult, snapshot_id: str, *extra: str) -> CandidateLimitation:
     return CandidateLimitation(
         v2_evidence_id=candidate.record.id,
@@ -241,7 +247,9 @@ def _assess_group(
     operation_id: str,
     group: list[CandidateResult],
 ) -> QualifiedLocalEvidenceAssessment:
-    workload = min((c.workload for c in group if c.workload), key=lambda w: w.uid or "")
+    # Every candidate of the group has the same D14.1 identity; the representative is fixed by
+    # the remaining (non-identity) fields so input order never chooses it.
+    workload = min((c.workload for c in group if c.workload), key=lambda w: (w.workload_id, w.name))
     records = sorted((c.record for c in group), key=lambda record: record.id)
     v2_ids = [record.id for record in records]
 
@@ -363,7 +371,7 @@ def assess(read: ScopedApplicabilityRead, request: LocalityRequest) -> LocalAsse
             **base,
         )
 
-    groups: dict[tuple[str, str], list[CandidateResult]] = defaultdict(list)
+    groups: dict[tuple[str, tuple[str, str, str, str]], list[CandidateResult]] = defaultdict(list)
     limitations = []
     for candidate in read.result.candidates:
         workload = candidate.workload
@@ -376,7 +384,8 @@ def assess(read: ScopedApplicabilityRead, request: LocalityRequest) -> LocalAsse
                 )
             )
         else:
-            groups[(candidate.record.object_id, workload.workload_id)].append(candidate)
+            # D9/D14.3: group by exactly the assertion's frozen Workload identity, UID included.
+            groups[(candidate.record.object_id, _workload_identity(workload))].append(candidate)
 
     assertions = sorted(
         (

@@ -620,3 +620,20 @@ def test_a_truncated_page_names_its_continuation():
 def test_the_window_end_is_the_last_representable_microsecond():
     window = ScopedDayWindowV1.parse("9999-12-31", "9999-12-31")
     assert window.end == datetime(9999, 12, 31, 23, 59, 59, 999999, tzinfo=UTC)
+
+
+def test_one_pod_resolved_to_two_incarnations_of_one_logical_workload_conflicts():
+    """PR #365 review: D4 deduplicates only exactly identical Workload identities, and the
+    captured UID is part of that identity (D14.1)."""
+    first = replace(W1, uid="uid-first")
+    second = replace(W1, uid="uid-second")
+    assert first.workload_id == second.workload_id
+    record = _record("V01-base", attributes=False)
+    candidate = _s(
+        [_source("a", _pod(P1, P1_NAME, first)), _source("b", _pod(P1, P1_NAME, second))],
+        record=record,
+    )
+    assert [pair.disposition for pair in candidate.pairs] == [LocalityDisposition.APPLICABLE] * 2
+    assert candidate.disposition is LocalityDisposition.CONFLICT
+    assert list(candidate.reasons) == ["LOCALITY_POD_OWNER_CONFLICT"]
+    assert candidate.workload is None

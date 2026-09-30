@@ -420,3 +420,25 @@ def test_l30_no_narrative_or_intent_input_exists():
         f.name for f in dataclasses.fields(QualifiedLocalEvidenceAssessment)
     }
     assert not {n for n in names if any(w in n for w in ("intent", "narrative", "description"))}
+
+
+def test_two_incarnations_of_one_logical_workload_are_two_assertions():
+    """PR #365 review: the captured UID is part of the assertion identity (D9, D14.1), so two
+    incarnations of one logical Workload (same cluster/kind/namespace/name, different captured
+    UID) are never merged, and each keeps only its own lineage and capture."""
+    recreated = replace(W1, uid="22222222-bbbb-4ccc-8ddd-0000000000ff")
+    assert recreated.workload_id == W1.workload_id
+    first = _source("cap-a", _pod(P1, P1_NAME, W1))
+    second = _source("cap-b", _pod(P2, "orders-new-x", recreated))
+    records = [_record("V01-base", attributes=False), _record("V03-distinct-pod", attributes=False)]
+
+    result = _assess(records, [first, second])
+
+    by_uid = {a.caller_workload.uid: a for a in result.assertions}
+    assert set(by_uid) == {W1.uid, recreated.uid}
+    assert len({a.assertion_id for a in result.assertions}) == 2
+    assert by_uid[W1.uid].assertion_id == ASSERTION_VECTORS["A01-v01-w1-o1-day-d"]["expected_id"]
+    assert by_uid[W1.uid].observation.evidence_ids == (records[0].id,)
+    assert by_uid[recreated.uid].observation.evidence_ids == (records[1].id,)
+    assert [c.source_instance_id for c in by_uid[W1.uid].selected_captures] == ["cap-a"]
+    assert [c.source_instance_id for c in by_uid[recreated.uid].selected_captures] == ["cap-b"]

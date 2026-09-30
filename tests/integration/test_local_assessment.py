@@ -340,3 +340,45 @@ def test_a_graph_that_never_settles_fails_closed(graph, session, tmp_path, monke
     monkeypatch.setattr(repository, "read_revision", lambda _session: next(counter))
     with pytest.raises(SnapshotUnstable):
         _service(graph).assess_local_calls(_request())
+
+
+def test_two_current_incarnations_of_one_logical_workload_stay_two_assertions(
+    graph, session, tmp_path
+):
+    """PR #365 review, on real imports: two sources imported in separate runs can both hold the
+    logical Workload `shop/orders` under different captured UIDs. The UID is part of the assertion
+    identity (D14.1), so each incarnation keeps its own assertion, lineage and capture."""
+    _declare_oracle_ids(graph)
+    _import(graph, tmp_path, **_cap("CAP-A", "a", resources=_chain("orders", W1_UID, P1_NAME, P1)))
+    second_uid = "22222222-bbbb-4ccc-8ddd-0000000000ff"
+    _import(
+        graph,
+        tmp_path,
+        **_cap("CAP-A", "b", resources=_chain("orders", second_uid, "orders-x", P2)),
+    )
+    records = []
+    for vector in ("V01-base", "V03-distinct-pod"):
+        base = _record(vector)
+        records.append(
+            base.model_copy(
+                update={
+                    "k8s_pod_name": P1_NAME if base.caller_pod_uid == P1 else "orders-x",
+                    "k8s_deployment_name": "orders",
+                }
+            )
+        )
+    persist_observation_batch(
+        graph, DATABASE, _batch(*map(_seed, records)), scoped=ScopedEvidenceConfig(enabled=True)
+    )
+
+    result = _service(graph).assess_local_calls(_request())
+
+    by_uid = {a.caller_workload.uid: a for a in result.assertions}
+    assert set(by_uid) == {W1_UID, second_uid}
+    assert {a.caller_workload.workload_id for a in result.assertions} == {
+        result.assertions[0].caller_workload.workload_id
+    }
+    assert by_uid[W1_UID].assertion_id == _VECTORS["A01-v01-w1-o1-day-d"]["expected_id"]
+    assert by_uid[W1_UID].observation.evidence_ids == (records[0].id,)
+    assert by_uid[second_uid].observation.evidence_ids == (records[1].id,)
+    assert {a.qualification for a in result.assertions} == {CONFIRMED}
