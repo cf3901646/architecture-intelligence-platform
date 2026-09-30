@@ -8,6 +8,7 @@ are applicability checks (I1 §10.1 phases 3-4), not filters, so a wrong-environ
 record must still be returned and then judged (I1 L10b, L17d).
 """
 
+import dataclasses
 from collections import defaultdict
 from collections.abc import Sequence
 from dataclasses import dataclass
@@ -205,13 +206,61 @@ def read_source_inventories(
     ]
 
 
+# I2.4 (decision record D14.4): the legacy declared `CALLS` edge from the caller to each candidate
+# Operation and the qualification fields of the evidence it references. The qualification builder
+# passes on only the DECLARED ids; the edge's v1 OBSERVED ids are read but never used locally.
+_DECLARED_CALLS_QUERY = (
+    "MATCH (:Service {id: $subject_id})-[r:CALLS]->(o:Operation) WHERE o.id IN $operation_ids "
+    "RETURN o.id AS operation_id, coalesce(r.evidence_ids, []) AS evidence_ids"
+)
+_EVIDENCE_ROWS_QUERY = (
+    "MATCH (e:Evidence) WHERE e.id IN $evidence_ids "
+    "RETURN e.id AS id, e.evidence_type AS evidence_type, e.environment AS environment, "
+    "e.last_seen AS last_seen"
+)
+
+
+@dataclass(frozen=True)
+class DeclaredCallEvidence:
+    """The caller's legacy `CALLS` edge evidence per candidate Operation, read under the fence."""
+
+    edge_evidence_ids: dict[str, tuple[str, ...]]
+    evidence_rows: dict[str, dict]
+
+
+def read_declared_call_evidence(
+    runner: neo4j.Session | neo4j.ManagedTransaction,
+    *,
+    subject_id: str,
+    operation_ids: Sequence[str],
+) -> DeclaredCallEvidence:
+    edges = {
+        row["operation_id"]: tuple(sorted(set(row["evidence_ids"])))
+        for row in runner.run(
+            _DECLARED_CALLS_QUERY, subject_id=subject_id, operation_ids=sorted(set(operation_ids))
+        )
+    }
+    evidence_ids = sorted({eid for ids in edges.values() for eid in ids})
+    rows = {}
+    for record in runner.run(_EVIDENCE_ROWS_QUERY, evidence_ids=evidence_ids):
+        row = dict(record)
+        if row["last_seen"] is not None:
+            row["last_seen"] = row["last_seen"].to_native()
+        rows[row["id"]] = row
+    return DeclaredCallEvidence(edge_evidence_ids=edges, evidence_rows=rows)
+
+
 @dataclass(frozen=True)
 class ScopedApplicabilityRead:
-    """One evaluated candidate page bound to the snapshot it was read under (I2 §8, §11)."""
+    """One evaluated candidate page, and the declared evidence of its Operations, bound to the
+    snapshot it was read under (I2 §8, §11)."""
 
     snapshot_id: str
     model_revision: str
     result: ApplicabilityResult
+    declared: DeclaredCallEvidence = dataclasses.field(
+        default_factory=lambda: DeclaredCallEvidence({}, {})
+    )
 
 
 def read_scoped_applicability(
@@ -222,15 +271,15 @@ def read_scoped_applicability(
     after_id: str | None = None,
     max_attempts: int = 3,
 ) -> ScopedApplicabilityRead:
-    """Reads one candidate page (D3), the committed source captures and their Pods/owners inside
-    one stable-snapshot attempt, then evaluates them (D13.7). A malformed window raises
-    `ValueError` before anything is read; a phase-1 refusal reads no candidates.
-    `SnapshotUnstable` propagates."""
+    """Reads one candidate page (D3), the committed source captures and their Pods/owners, and the
+    declared `CALLS` evidence of the page's Operations inside one stable-snapshot attempt, then
+    evaluates the page (D13.7, D14.4). A malformed window raises `ValueError` before anything is
+    read; a phase-1 refusal reads no candidates. `SnapshotUnstable` propagates."""
     refused = isinstance(preflight(request), RequestRefusal)
 
-    def read_extra(runner: neo4j.Session) -> ApplicabilityResult:
+    def read_extra(runner: neo4j.Session) -> tuple[ApplicabilityResult, DeclaredCallEvidence]:
         if refused:
-            return evaluate_candidates(request, [], [])
+            return evaluate_candidates(request, [], []), DeclaredCallEvidence({}, {})
         page = read_scoped_observed_calls(
             runner,
             subject_id=request.subject_service_id,
@@ -240,7 +289,13 @@ def read_scoped_applicability(
         sources = read_source_inventories(
             runner, pod_uids=[record.caller_pod_uid for record in page.records]
         )
-        return evaluate_candidates(request, page.records, sources, truncated=page.truncated)
+        declared = read_declared_call_evidence(
+            runner,
+            subject_id=request.subject_service_id,
+            operation_ids=[record.object_id for record in page.records],
+        )
+        result = evaluate_candidates(request, page.records, sources, truncated=page.truncated)
+        return result, declared
 
     snapshot = read_stable_snapshot_from_session(
         session,
@@ -248,8 +303,10 @@ def read_scoped_applicability(
         read_extra=read_extra,
         max_attempts=max_attempts,
     )
+    result, declared = snapshot.extra
     return ScopedApplicabilityRead(
         snapshot_id=snapshot.snapshot_id,
         model_revision=snapshot.model_revision,
-        result=snapshot.extra,
+        result=result,
+        declared=declared,
     )
