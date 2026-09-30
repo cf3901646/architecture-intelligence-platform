@@ -58,9 +58,6 @@ from benchmarks.snapshot_read_cost import collect_runtime_metadata
 
 NAME = "scoped_churn_cost"
 SCHEMA_VERSION = "aip-benchmark-scoped-churn/1"
-NEO4J_IMAGE = (
-    "neo4j:5.26.31@sha256:5eb12ad77fa46ab73e23df9ea1f43f5c0f2a79523435577648e046be042b9b93"
-)
 DATABASE = "neo4j"
 SCALE_POINTS = {"smoke": (0, 3), "i2": (0, 100, 1000)}
 REPEATS = 5
@@ -366,7 +363,9 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--profile", choices=sorted(SCALE_POINTS), default="smoke")
     parser.add_argument("--out", type=Path)
     args = parser.parse_args(argv)
-    with Neo4jContainer(NEO4J_IMAGE) as container:
+    with Neo4jContainer(
+        "neo4j:5.26.31@sha256:5eb12ad77fa46ab73e23df9ea1f43f5c0f2a79523435577648e046be042b9b93"
+    ) as container:
         driver = container.get_driver()
         try:
             result = run(args.profile, driver)
