@@ -283,6 +283,18 @@ These are owner decisions taken while planning I2.4 (the qualified local assessm
 | D14.7 | **Snapshot binding.** The instance ID binds the `snapshot_id` of the stable read that produced the assessment. That ID is known only after the read, so both IDs are computed afterwards, as the deployment IDs are. Until I2.5 adds the conditional keys, that `snapshot_id` does not yet include v2 or the capture scopes. |
 | D14.8 | **Bounds.** One call assesses one I2.3 candidate page (at most 500, D3), and passes `truncated` and the continuation through. On a truncated page, an assertion may list only part of its v2 lineage. Its ID is unaffected, and it is marked `lineage_complete = false`. |
 
+## D15 — I2.5 clarifications (added in I2.5a; additive, D1–D14 unchanged)
+
+These are owner decisions taken while planning I2.5 (one snapshot and compatibility). The independently expected full-graph after-`snapshot_id` required by I2 §11 gate (b) and D5 is frozen in [`i2-vectors/snapshot-after.json`](i2-vectors/snapshot-after.json) as `aip:snapshot:v1:3a0b04e1d88feaae5ebb2277f8fe50fba74279cc3af12906edc37a31e55c59f9`. The state was written by hand and hashed with `sha256sum`, and `tests/unit/test_v060_i2_snapshot_after_vector.py` checks it with the standard library only.
+
+| # | Clarification |
+|---|---|
+| D15.1 | **After-vector fixture.** The fixture is minimal and synthetic. One telemetry unit, with the flag enabled, carries five CALLS facts. Together they fold into exactly the I1 `snapshot_fragment` records V01 (3 calls, `CLIENT_SERVER`) and V03 (2 calls, `CLIENT_ONLY`, `k8s_pod_name` flagged), into their v1 U01 bucket, into the stub Service and Operation and into the `CALLS` edge. The fixture also has one accepted Kubernetes capture with zero resources, so every `deployment_*` key is `[]`. The real importer accepts a zero-resource envelope. |
+| D15.2 | **One condition.** Both conditional keys exist if and only if at least one `ScopedObservedCallV2` exists. With v2 and no accepted capture, `scoped_capture_scopes_v2` is `[]`. With no v2, both keys are absent, never `[]` or `null`. |
+| D15.3 | **v2 entry projection.** It follows the frozen fragment. Entries are sorted by `id` and carry exactly the v2 contract §8 fields. The five `k8s_*` names appear as explicit `null` when absent, timestamps use the `…ffffffZ` form, and lists are sorted. This projection is separate from `_project_row`, whose drop-null rule is unchanged for every existing key. |
+| D15.4 | **Scope entries.** There is one entry per `SourceState` with a non-null `capture_cluster_uid`, sorted by `source_instance_id`. Each has exactly D5's seven fields, with `namespaces` sorted and `captured_at` as the raw envelope string. |
+| D15.5 | **Read cost.** The state reads every v2 record, with no paging, because that is required for one complete fingerprint (I1 §11.5). The cost is measured in I2.6, and no threshold is invented here. |
+
 ## Traceability
 
 | I2 requirement | Decision |
@@ -300,3 +312,4 @@ These are owner decisions taken while planning I2.4 (the qualified local assessm
 | §15 I2.2: implementation details left to I2.2 | D12 |
 | §8.1, §13, §15 I2.3: applicability details left to I2.3 (CAP-AMB/CAP-CONF, phase collection, selector, roll-up reasons) | D13 |
 | §9, §10, §17.2/§17.5, D11: assertion/instance encodings, frozen vectors, grouping, qualification input, answer level | D14 |
+| §11 gate (b), D5: after-vector fixture, key condition, entry projections, read cost | D15 |
