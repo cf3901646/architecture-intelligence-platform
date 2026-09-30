@@ -682,7 +682,7 @@ v0.3  validation and hardening
 The version list above is the **planned release order**, not a claim that every immediately preceding
 release is a semantic prerequisite for the next one.
 
-In capability terms, the dependency structure is a DAG:
+In capability terms, the semantic dependencies branch rather than form one linear chain:
 
 ```text
 VALIDATE
@@ -721,8 +721,9 @@ v0.9  HOW does established Current State differ from applicable Intent?
 v1.0-rc  FREEZE and qualify the question space already implemented
 ```
 
-These questions expand AIP's safely answerable Architecture Knowledge in release order; the DAG
-above, not the version adjacency, defines semantic prerequisite relationships.
+These questions expand AIP's safely answerable Architecture Knowledge in release order; the
+branching dependency structure above, not the version adjacency, defines semantic prerequisite
+relationships.
 
 The Wardley-mapping result adds an investment rule:
 
@@ -773,8 +774,8 @@ answered `NO`, so that gate did not block.
 
 None of the above are committed dates — this is a planning sequence, not a schedule. The detailed
 scope of each planned release remains subject to its release specification and qualification gate;
-the semantic dependency DAG and the independence of Current State, Intent, and Assessment are the
-stable parts of this roadmap.
+the semantic dependency structure and the independence of Current State, Intent, and Assessment are
+the stable parts of this roadmap.
 
 ## Product validation gates
 
