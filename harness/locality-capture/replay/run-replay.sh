@@ -52,7 +52,7 @@ run_state() { # $1=name $2=true|false (scoped evidence) $3=c1|c2
     local received
     received=$("${COMPOSE[@]}" logs architecture-intelligence 2>/dev/null \
         | grep -c '"POST /v1/traces HTTP/1.1" 200' || true)
-    "${COMPOSE[@]}" exec -T architecture-intelligence \
+    "${COMPOSE[@]}" exec -T -e PYTHONPATH=/app architecture-intelligence \
         python /app/rehearsal-tools/evaluate.py "$DAY" "$P1_UID" "$P2_UID" > "$ART/state-$name.json"
     printf '{"state": "%s", "lines": %s, "aip_post_200": %s}\n' "$name" "$LINES" "$received" \
         > "$ART/wire-$name.json"
