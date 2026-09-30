@@ -2286,7 +2286,7 @@ capability release expands AIP's useful Architecture Knowledge. v0.7 remains a *
 question-specific Current-State extension**; it must not delay, amend or implicitly widen the
 accepted v0.6.0 specification.
 
-The planned release order is linear, but the **semantic dependencies are a DAG**:
+The planned release order is linear, but the **semantic dependencies branch rather than form one linear chain**:
 
 ```text
 DISCOVER
