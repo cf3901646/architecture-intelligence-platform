@@ -1,6 +1,6 @@
 # AIP v0.6.0 I2 — Completion Record
 
-**Status:** **COMPLETE**, subject to the merge of this record (I2.6d). This PR cannot know its own merge commit, so a follow-up writes the closure SHA here (the two-step closure pattern, as for I1 in #318).
+**Status:** **COMPLETE.** Closed by PR #376, merge `46f700ee4a67399a67e406c8e445db572fd0a31a` (2026-09-30T20:22:25Z). The closure SHA was written into this record by a follow-up PR, because a PR cannot record its own merge commit (the two-step closure pattern, as for I1 in #318).
 **Release / increment:** `v0.6.0` — Locality-Aware Current State / I2.
 **Governing specification:** [I2 specification](i2-scoped-evidence-and-qualified-local-assessment.md) revision 0.4, merged in #312 (`6cebe35b1c520f754c6306a5ff9629c89ace6dc5`) and accepted by the owner (status line changed in #320). This record covers the whole of I2: slices I2.1–I2.6, 17 merged slice PRs plus this record.
 **Not claimed:** I2 is not qualified, not released and not public. There is no REST/MCP surface or public schema (I3). There is no final-candidate repeatability or surface qualification (I4). The real controlled I5 capture is **`NOT_RUN`**. The I2.6a harness run is a labelled **rehearsal**, not I5 evidence.
@@ -30,7 +30,7 @@ Merge commits were read with `gh pr view --json mergeCommit,mergedAt`, not typed
 | I2.6a capture harness and rehearsal | #373 | `a64c6227ce7391aeed4f389fd25dcdef1c1528c4` | 2026-09-30T19:08:20Z | 2026-09-30T13:25:14Z |
 | I2.6b 65-variant conformance matrix | #374 | `fec7df7bc406e595f557eefa32af2268609a780c` | 2026-09-30T19:30:38Z | 2026-09-30T13:25:14Z |
 | I2.6c Pod-churn cost measurement | #375 | `95bebe2787c41b501edf9035057eaf27f80d65cc` | 2026-09-30T19:56:09Z | 2026-09-30T13:25:14Z |
-| I2.6d I3 handoff and this record | this PR | *closure follow-up* | — | 2026-09-30T13:25:14Z |
+| I2.6d I3 handoff and this record | #376 | `46f700ee4a67399a67e406c8e445db572fd0a31a` | 2026-09-30T20:22:25Z | 2026-09-30T13:25:14Z |
 
 Maintenance PR during I2.6, not part of I2 scope: #372 (`5d7f287c90e7a8dff917fffbc0ab6c2248d8a677`), which bumps pyjwt 2.15.0 and urllib3 2.8.0 for CVEs flagged by `pip-audit`.
 
