@@ -703,13 +703,6 @@ API-AWARE CURRENT STATE (v0.7)   EXPLICIT INTENT (v0.8)
                                FREEZE
 ```
 
-v0.6 is a semantic prerequisite for both the additional API-aware Current-State question and the
-independent Intent/Assessment work because locality/context must already have stable meaning.
-**v0.7 is not a semantic prerequisite for v0.8.** API-Aware Current State is one independently
-qualified Current-State expansion. v0.9 requires an applicable Intent projection and the relevant
-independently established Current-State projection; an API-specific assessment additionally depends
-on the v0.7 API semantics, while a non-API assessment need not.
-
 In product-question terms, the planned release order is:
 
 ```text
