@@ -33,7 +33,7 @@ _DEPLOYMENT_RESOLUTION_ID_PATTERN = rf"^aip:deployment-resolution:v1:{_SHA256_HE
 # No leading/trailing whitespace and no control characters anywhere (spec §16.1). Expressed as a
 # single character-class-only pattern (no lookaround) so it also compiles under pydantic-core's
 # Rust regex engine and therefore shows up as a real `pattern` in the generated JSON Schema.
-_ENVIRONMENT_PATTERN = r"^[^\s\x00-\x1f\x7f](?:[^\x00-\x1f\x7f]*[^\s\x00-\x1f\x7f])?$"
+ENVIRONMENT_PATTERN = r"^[^\s\x00-\x1f\x7f](?:[^\x00-\x1f\x7f]*[^\s\x00-\x1f\x7f])?$"
 
 MAX_OBSERVATION_WINDOW = timedelta(days=31)
 
@@ -191,7 +191,7 @@ class ObservationContextRef(BaseModel):
     model_config = ConfigDict(frozen=True, extra="forbid")
 
     context_id: str = Field(pattern=_CONTEXT_ID_PATTERN)
-    environment: str = Field(min_length=1, max_length=128, pattern=_ENVIRONMENT_PATTERN)
+    environment: str = Field(min_length=1, max_length=128, pattern=ENVIRONMENT_PATTERN)
     window_start: datetime
     window_end: datetime
 

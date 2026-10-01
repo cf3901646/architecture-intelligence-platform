@@ -254,12 +254,28 @@ In addition to the I3 §14 table, the independent I3.1c matrix includes these ca
 | R7 | evidence mode with a capture ref of a positive assessment whose Pod/owner evidence is **not** deployment-reachable | the ref resolves here (`POD_CAPTURE`/`OWNER_CAPTURE`); legacy `get_evidence` for the same ID is still not found |
 | R8 | evidence mode with a capture ref of another caller's Pod, a declared evidence ID, and a legacy OTel v1 evidence ID | each `NOT_FOUND`, indistinguishable |
 
+## D16 — I3.1b clarifications (added in I3.1b; additive, D1–D15 unchanged)
+
+These are decisions taken while publishing the draft schemas. D16.4 is an owner decision; the rest settle representation details that D1–D15 leave open. The models are `app/architecture_intelligence/locality_contracts.py`, and the generated, frozen files are `schemas/architecture_intelligence/v0.6/service-dependencies-by-locality-{request,answer}.schema.json`.
+
+| # | Clarification |
+|---|---|
+| D16.1 | **Evidence-mode limitation.** D11's `PARTIAL` (some refs `NOT_FOUND`) and `NOT_ANSWERED` (none resolved) both carry `INSUFFICIENT_EVIDENCE`. So the outcome rule is mode-specific: for `query`, `INSUFFICIENT_EVIDENCE` means `NOT_ANSWERED` (D9); for `evidence`, it is `PARTIAL` while any ref resolved. No new code is added. |
+| D16.2 | **Request shape.** The published request schema is the MCP `request` argument itself: a union discriminated on `mode` (`LocalityQueryRequest`, `LocalityEvidenceRequest`). The REST bodies (D1: no `subject_service_id`, and no `mode` because the route selects it) are derived from these in I3.3 and are not separate published files. |
+| D16.3 | **Assessment placement.** `localities[].assessments[]` carry each I2 assessment's own values unchanged (`assertion_id`, `assessment_id`, Operation, qualification, observation, declared IDs, selected captures, capture refs, source limitations, rules). Its subject, relation, environment, window, caller Workload and snapshot are carried **once**, by `request_context`, the locality's `workload` and the envelope's `snapshot`, so they cannot disagree. |
+| D16.4 | **Provider filter (owner decision).** With `provider_service_id`, `localities[]` keeps only Operations owned by that provider plus unresolved-owner Operations; a Workload left with none is not listed. `selection` and `comparison` are evaluated on that filtered projection. `candidates[]` stays the complete, unfiltered inventory. "No positive relation to this provider" is never an absence. |
+| D16.5 | **Ordering.** Pairs are sorted by `(source_instance_id, revision)`; `admission`, reasons, limitation codes and every ID list are sorted by value and duplicate-free; `compare` and `comparison.scopes` keep the request order (first, second); `selection` follows `caller_localities`; envelope limitations are sorted by code, one per code. |
+| D16.6 | **Inventory fields.** `considered_capture_source_count` is D4's `S`, and `bounds.candidate_page_size` is D4's `k`, checked as `min(500, ⌊2000/S⌋)` (500 when `S = 0`). An explicit `source_selector` gives `S ≤ 1`. `evaluated_sources` are exactly the sources of the listed pairs. |
+| D16.7 | **Evidence refs.** Each ref is an opaque, non-empty ID with no whitespace. A ref matching the v2 pattern can only resolve as `SCOPED_V2`, any other ref only as `POD_CAPTURE`/`OWNER_CAPTURE` with Kubernetes evidence. `NOT_FOUND` carries no kind and no record. |
+| D16.8 | **Cursor form.** A cursor must decode to exactly the five D5 fields **and** re-encode to the same string, so a non-canonical encoding of a valid payload is a validation error, as is anything undecodable. A `next_cursor` must carry the answer's own `snapshot_id`. |
+| D16.9 | **Schema-expressible versus model-only.** Everything JSON Schema can state (closed objects, enums, consts, patterns, bounds, `uniqueItems`, `mode`↔payload, data-null↔refusal, outcome↔limitations, pair phase/Workload rules, NOT_FOUND/kind/record rules) is in the published schema and tested to fail **both** validators. Ordering, counts, cross-references, D10 selection status and comparison derivation, D16.4 and the cursor's decoding are model-only and tested as such. |
+
 ## Traceability
 
 | I3 requirement | Decision |
 |---|---|
 | §17.1 exposure and tool count; §13; parent §17, §19 | D1, D12 |
-| §17.2 versioning; §11; parent §18 | D2, D14 |
+| §17.2 versioning; §11; parent §18 | D2, D14, D16 |
 | §17.3 inventory and selectors; §5, §6 | D3, D10 |
 | §17.4 continuation and budget; §7 | D4, D5, D6, D7, D15 |
 | §17.5 provider projection; §8; I1 §5.1 (L04a, L32a, L32b) | D8 |
