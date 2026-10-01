@@ -34,8 +34,9 @@ from app.architecture_intelligence.contracts import (
     Producer,
     ServiceDependenciesData,
     SnapshotRef,
+    supported_fact_sort_key,
 )
-from app.architecture_intelligence.contracts import _claim_sort_key as _polymorphic_claim_sort_key
+from app.architecture_intelligence.contracts import claim_sort_key as _polymorphic_claim_sort_key
 from app.architecture_intelligence.dependency_projection import (
     ProjectionResult,
     project_service_dependencies,
@@ -89,10 +90,6 @@ def _limitation_sort_key(limitation: Limitation) -> tuple[str, str]:
     return (limitation.code.value, limitation.message)
 
 
-def _supported_fact_sort_key(fact) -> tuple[str, str, str]:
-    return (fact.relation_type.value, fact.source_id, fact.target_id)
-
-
 def _synthetic_evidence_to_public_dict(record) -> dict:
     """v0.5.0 I3 slice 5b - converts a Path B/C synthetic `EvidenceRecord` into the same ad hoc
     dict shape `read_public_evidence_list_rows`/`read_public_evidence_row` already return for a
@@ -126,7 +123,7 @@ def _apply_deployed_as_evidence(
                 # hashable at runtime; pyright only recognizes the class-keyword form of `frozen`.
                 "supports": sorted(
                     {*record.supports, *supports_by_id[record.id]},  # pyright: ignore[reportUnhashable]
-                    key=_supported_fact_sort_key,
+                    key=supported_fact_sort_key,
                 )
             }
         )
