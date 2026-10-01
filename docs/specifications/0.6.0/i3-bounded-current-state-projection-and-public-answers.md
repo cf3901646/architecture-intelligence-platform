@@ -78,7 +78,7 @@ I2's assess_local_calls currently opens its **own** read-only session and return
 
 ## 5. Public query and exact-scope selection
 
-**[I3 proposal — request shape to freeze]** A new typed request, tentatively RelationLocalitiesRequest, has:
+**[I3 proposal — request shape to freeze]** A new typed request, tentatively ServiceDependenciesByLocalityRequest, has:
 
 | Field | Proposed meaning |
 |---|---|
@@ -182,7 +182,7 @@ For any truncated candidate page, missing owner, unknown capture, or partial sel
 
 ## 11. Public response, versioning and refusal shape
 
-**[I3 proposal — public contract; names illustrative until frozen]** Add a typed RelationLocalitiesData payload containing:
+**[I3 proposal — public contract; names illustrative until frozen]** Add a typed ServiceDependenciesByLocalityData payload containing:
 
 ~~~text
 request_context:
@@ -222,7 +222,7 @@ I2 D1 intentionally isolates ScopedObservedCallV2 from the legacy Evidence label
 
 Each returned scoped record contains only admitted public fields and provenance needed to substantiate the answer: v2 ID, original caller cluster/Pod UID, canonical caller/Operation, UTC-day and relevant first/last observed timestamps, bounded sample trace IDs where allowed, source mode/revision references, and the evidence's identity/normalization rule. Omit raw spans, arbitrary OTel Resources, credentials, host/IP inference and unqualified target placement. Preserve the distinction between v2 event attribution and query-time Workload resolution. Evidence lookup must not recompute an independent digest, an ownership fact, or an architecture claim.
 
-**Fourth-tool budget proposal:** expose drill-down as a **bounded second request mode on the new get_relation_localities MCP tool**, with a dedicated REST subroute if useful; this prevents quietly creating a fifth public tool or widening the legacy get_evidence contract. The mode is a reviewed discriminated request union (query vs exact evidence lookup), not an arbitrary graph query. A different fourth-tool design is acceptable only with documented semantic equivalence and the parent §17 review. Freeze exact mode names, ID/ref partition, refusal and routing before code.
+**Fourth-tool budget proposal:** expose drill-down as a **bounded second request mode on the new get_service_dependencies_by_locality MCP tool**, with a dedicated REST subroute if useful; this prevents quietly creating a fifth public tool or widening the legacy get_evidence contract. The mode is a reviewed discriminated request union (query vs exact evidence lookup), not an arbitrary graph query. A different fourth-tool design is acceptable only with documented semantic equivalence and the parent §17 review. Freeze exact mode names, ID/ref partition, refusal and routing before code.
 
 Test v2-positive, no-v2, stale snapshot, mismatched caller/Operation, unsupported ref, 20-ref boundary, cross-source limitations and negative attempts to fetch v2 via legacy APIs/NL. Existing v0.5 evidence resolution remains byte/semantic compatible.
 
@@ -232,11 +232,13 @@ Test v2-positive, no-v2, stale snapshot, mismatched caller/Operation, unsupporte
 
 | Surface | Proposed operation | Boundary |
 |---|---|---|
-| Semantic service | ArchitectureIntelligenceService.get_relation_localities(request) | Sole source of enumeration, grouping, comparison, dispositions and lineage |
+| Semantic service | ArchitectureIntelligenceService.get_service_dependencies_by_locality(request) | Sole source of enumeration, grouping, comparison, dispositions and lineage |
 | Semantic service | ArchitectureIntelligenceService.resolve_scoped_locality_evidence(request) | Sole snapshot-bound scoped resolver, sharing authorized I2 reads |
-| REST | POST /api/services/{service_id}/relation-localities | Typed bounded request body; response is exact versioned service answer |
-| REST scoped lookup | POST /api/services/{service_id}/relation-localities/evidence | Exact ref+snapshot request, not the existing unscoped evidence endpoint |
-| MCP | get_relation_localities | **Proposed fourth read-only tool**, query/resolver modes; negotiated transport, one typed request argument |
+| REST | POST /api/services/{service_id}/dependencies/by-locality | Typed bounded request body; response is exact versioned service answer |
+| REST scoped lookup | POST /api/services/{service_id}/dependencies/by-locality/evidence | Exact ref+snapshot request, not the existing unscoped evidence endpoint |
+| MCP | get_service_dependencies_by_locality | **Proposed fourth read-only tool**, query/resolver modes; negotiated transport, one typed request argument |
+
+**Proposed MCP description:** Discover evidenced caller-Workload localities and return positively established HTTP dependencies per locality, with optional same-snapshot comparison. The results are **not** an exhaustive partition of all Service dependencies: missing relationships do not establish local absence. Unknown, unresolved, excluded and unscanned items remain explicit. In the proposed second request mode, the same tool resolves exact scoped evidence refs under the supplied snapshot without widening legacy `get_evidence`. Tool name, modes and route are still I3.1 freeze decisions.
 | Existing MCP | get_architecture_drift, get_evidence, get_service_dependencies | Unmodified 0.5 meanings and existing tool contracts |
 
 Why POST is proposed: typed exact selections/cursors/filters and bounded explicit v2 refs do not fit comfortably into long GET query parameters. This remains an **[I3 proposal]**, not a frozen route or tool-count commitment. Parent §17 permits an equivalent compatible extension of three tools only through a reviewed decision proving the same public question and drill-down; the default proposal is one fourth tool, not generic graph traversal.
@@ -309,7 +311,7 @@ I3 is complete only when all of the following have **executed evidence**, not as
 
 The accepted parent and completed I2 do **not** themselves select the following public I3 details. These are **proposals**, not silently decided facts:
 
-1. **Public exposure and tool count:** one new read-only get_relation_localities tool versus a proven equivalent extension of the three existing tools; exact REST route/method and whether the fourth tool has a separate scoped-evidence lookup mode. A fifth tool requires independent approval.
+1. **Public exposure and tool count:** one new read-only get_service_dependencies_by_locality tool versus a proven equivalent extension of the three existing tools; exact REST route/method and whether the fourth tool has a separate scoped-evidence lookup mode. A fifth tool requires independent approval.
 2. **Versioning:** new locality-specific 0.6 request/result schema vs widening the 0.5 ArchitectureAnswer and its closed claim/tool enums; migration and existing-client compatibility. Do not equate versioned schema and producer version.
 3. **Inventory and selectors:** exact request vocabulary, captured Workload UID representation, source-selector behavior, owner-unresolved presentation, and whether a provider filter changes only projection rather than candidate admission.
 4. **Continuation and budget:** public page/candidate/pair/group caps, safe fan-out preflight or smaller I2 read batches (maximum still 500), stable cursor format/validation, incomplete cross-page **and I3 cap-induced** Workload grouping, the **oversized-candidate liveness policy** (fail closed vs explicit refused/unknown entry with advancing cursor and visible incomplete inventory), and the rules for honestly refusing incomplete comparison.
