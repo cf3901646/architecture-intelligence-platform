@@ -1106,9 +1106,9 @@ class ServiceDependenciesByLocalityData(BaseModel):
             self.comparison.completeness is not ComparisonCompleteness.COMPLETE
         ):
             codes.add(LocalityLimitationCode.COMPARISON_INCOMPLETE)
-        if self.selection is not None and any(
-            item.evaluation is ScopeEvaluation.UNKNOWN for item in self.selection
-        ):
+        # D10/D15 R4: an UNKNOWN selected *or compared* identity is not an established scope.
+        scopes = [*(self.selection or ()), *(self.comparison.scopes if self.comparison else ())]
+        if any(scope.evaluation is ScopeEvaluation.UNKNOWN for scope in scopes):
             codes.add(LocalityLimitationCode.SELECTION_NOT_ESTABLISHED)
         if any(locality.unresolved_owner_operations for locality in self.localities):
             codes.add(LocalityLimitationCode.PROVIDER_OWNER_UNRESOLVED)

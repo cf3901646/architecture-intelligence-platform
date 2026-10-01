@@ -931,31 +931,60 @@ def test_r5_the_same_scope_cannot_be_reported_unknown_when_it_was_evaluated():
         _data(answer)["comparison"]["scopes"][0]["evaluation"] = "UNKNOWN"
         answer.update(
             outcome="PARTIAL",
-            limitations=[{"code": "COMPARISON_INCOMPLETE", "message": "x", "reasons": []}],
+            limitations=[
+                {"code": "COMPARISON_INCOMPLETE", "message": "x", "reasons": []},
+                {"code": "SELECTION_NOT_ESTABLISHED", "message": "x", "reasons": []},
+            ],
         )
 
-    _assert_answer_rejected_by_pydantic(_mutated(query_answer, mutate))
+    with pytest.raises(ValidationError) as excinfo:
+        LocalityAnswer.model_validate(_mutated(query_answer, mutate))
+    assert "a compared scope's evaluation must follow D10" in str(excinfo.value)
+
+
+def _invented_first_scope(answer: dict) -> None:
+    """D15 R4: `compare` names an identity no evaluated candidate or pair resolved."""
+    invented = _identity("invented")
+    data = _data(answer)
+    data["request_context"]["compare"] = [invented, W2]
+    data["comparison"].update(
+        scopes=[
+            {"workload": invented, "evaluation": "UNKNOWN"},
+            {"workload": W2, "evaluation": "POSITIVE"},
+        ],
+        only_in_first=[],
+        completeness="NOT_ESTABLISHED",
+    )
 
 
 def test_r4_an_invented_identity_is_unknown_and_the_comparison_not_established():
+    """R4 requires both COMPARISON_INCOMPLETE and SELECTION_NOT_ESTABLISHED, also when only
+    `compare` (no `caller_localities`) named the identity (PR #387 review)."""
+
     def mutate(answer: dict) -> None:
-        invented = _identity("invented")
-        data = _data(answer)
-        data["request_context"]["compare"] = [invented, W2]
-        data["comparison"].update(
-            scopes=[
-                {"workload": invented, "evaluation": "UNKNOWN"},
-                {"workload": W2, "evaluation": "POSITIVE"},
+        _invented_first_scope(answer)
+        answer.update(
+            outcome="PARTIAL",
+            limitations=[
+                {"code": "COMPARISON_INCOMPLETE", "message": "x", "reasons": []},
+                {"code": "SELECTION_NOT_ESTABLISHED", "message": "x", "reasons": []},
             ],
-            only_in_first=[],
-            completeness="NOT_ESTABLISHED",
         )
+
+    _assert_answer_valid(_mutated(query_answer, mutate))
+
+
+def test_r4_without_selection_not_established_is_rejected():
+    def mutate(answer: dict) -> None:
+        _invented_first_scope(answer)
         answer.update(
             outcome="PARTIAL",
             limitations=[{"code": "COMPARISON_INCOMPLETE", "message": "x", "reasons": []}],
         )
 
-    _assert_answer_valid(_mutated(query_answer, mutate))
+    with pytest.raises(ValidationError) as excinfo:
+        LocalityAnswer.model_validate(_mutated(query_answer, mutate))
+    assert "SELECTION_NOT_ESTABLISHED" in str(excinfo.value)
 
 
 def test_r4_an_invented_identity_cannot_be_evaluated_no_positive():
@@ -979,6 +1008,9 @@ def test_r6_on_a_partial_inventory_the_evaluated_scope_is_unknown():
         _no_positive_w1(answer)
         _set_inventory_partial(answer)
         _data(answer)["comparison"]["scopes"][0]["evaluation"] = "UNKNOWN"
+        answer["limitations"].append(
+            {"code": "SELECTION_NOT_ESTABLISHED", "message": "x", "reasons": []}
+        )
 
     _assert_answer_valid(_mutated(query_answer, mutate))
 
