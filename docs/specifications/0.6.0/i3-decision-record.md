@@ -13,6 +13,8 @@ The I3.1 work is cut into three PRs:
 
 The owner merges each before the next starts. No semantic code (I3.2) or adapter (I3.3) is written before I3.1c merges.
 
+**Revision 2 (PR #386 review of `858f679`):** D4/D6 bound the candidate×source fan-out with a same-fence preflight instead of a cap applied after evaluation; D10 no longer labels an identity outside the evaluated inventory as evaluated (new `EVALUATED_NO_POSITIVE`/`UNKNOWN` statuses and `SELECTION_NOT_ESTABLISHED`); D11 resolves capture/owner refs in the evidence mode under its own authority rule (owner decision), and D14 routes them there instead of to `get_evidence`. The required I3.1c cases are listed in D15.
+
 ---
 
 ## D1 — Exposure and tool count (I3 §13, §17 item 1; parent §17, §19)
@@ -63,19 +65,33 @@ The owner merges each before the next starts. No semantic code (I3.2) or adapter
 
 **Not introduced:** separate unknown-Service or stale-selector diagnostics (I3 §5). An empty candidate read is reported as I2 reports it and does not claim the Service is unknown.
 
-## D4 — Bounds (I3 §7, §17 item 4)
+## D4 — Bounds and the same-fence fan-out preflight (I3 §7, §17 item 4)
 
-These are initial presentation bounds, **not** measured safe limits or SLOs. I3.4 records cap and refusal frequencies (I3 §14).
+These are initial bounds, **not** measured safe limits or SLOs. I3.4 records cap and refusal frequencies and the read cost (I3 §14).
 
 | Bound | Value |
 |---|---|
-| Internal candidate page | I2's D3 page of **500** v2 candidates, unchanged. No new I2 read-size parameter. |
-| Per answer page | at most **50** distinct caller Workloads, **200** provider/Operation memberships, **2,000** candidate/source pair rows |
+| Pair bound `P` | **2,000** candidate/source pairs per answer page, enforced **before** any pair is materialized (below) |
+| Capture-source bound | at most **2,000** accepted capture sources considered by one request (`S ≤ P`) |
+| Internal candidate page `k` | `min(500, ⌊P / S⌋)` v2 candidates (`S ≥ 1`); `500` when `S = 0` or an explicit `source_selector` is given (`S ≤ 1`). Never above D3's 500. |
+| Presentation caps per answer page | at most **50** distinct caller Workloads and **200** provider/Operation memberships |
 | `caller_localities` | 1–50 |
 | `compare` | exactly 2 |
 | Evidence refs | 1–20 per evidence-mode request |
 
-**How a cap is applied.** I3 walks the I2 page's candidates in ascending v2 ID and keeps the longest prefix of **complete** candidates (each with all of its pairs) whose projection stays within every cap. If that prefix is shorter than the page, I3 re-runs I2's pure `assess` over the **same fenced read**, restricted to the prefix, with `truncated = true` and `next_after_id` = the last presented v2 ID. There is no second database read, so the prefix stays on the same snapshot, and I2 itself marks every assertion's lineage incomplete (D14.8). A candidate's pairs are never cut.
+**Why a preflight.** I2's read evaluates *every* candidate against *every* admitted source. A 500-candidate page is therefore not a pair, memory or work bound: the pair count is at most candidates × capture sources, and [`i2-churn-cost.json`](i2-churn-cost.json) measured Pod count, not source fan-out. A cap applied after `evaluate_candidates` would not bound anything.
+
+**Preflight, inside the same stable-snapshot attempt** (one `read_extra`, I2 §11):
+1. Read the accepted capture-source inventory **first** (I2's existing `SOURCE_CAPTURES_QUERY`; no Pods, owners or candidates yet). With an explicit `source_selector`, `S` is 1 if the selected `(source, revision)` is current, else 0 (and D13.3 then yields zero pairs). Otherwise `S` is the number of accepted capture sources.
+2. If `S > 2,000`, stop: `NOT_ANSWERED` / `RESULT_LIMIT_EXCEEDED` (D6). No candidate is read.
+3. Read at most `k` candidates. Each candidate has at most `S` admitted pairs, so the page has at most `k × S ≤ P` pairs **before** they are built. Pod and owner reads stay restricted to the page's Pod UIDs, as in I2 (D13.6).
+4. Evaluate and assess with I2's unchanged pure functions.
+
+`S` counts every accepted capture source, including those that will not pair with any candidate (other clusters or namespaces). This makes the bound conservative, not exact. It may shrink `k` but never under-counts.
+
+**Reviewed I2 change (I3 §7 permits it).** `read_scoped_applicability` and `assess_local_calls` gain a keyword `page_size` (1–500, default 500, so the I2 behaviour and tests are unchanged), and a hook that lets the caller choose `k` from the sources read in step 1 inside the same fence. Both are I3.2 implementation work; this record freezes only the rule.
+
+**Presentation caps.** After the bounded read, I3 walks the candidates in ascending v2 ID and keeps the longest prefix of **complete** candidates (each with all of its pairs) whose projection stays within the Workload and membership caps. If that prefix is shorter than the page, I3 re-runs I2's pure `assess` over the **same fenced read**, restricted to the prefix, with `truncated = true` and `next_after_id` = the last presented v2 ID. There is no second database read, so the prefix stays on the same snapshot, and I2 itself marks every assertion's lineage incomplete (D14.8). A candidate's pairs are never cut. These caps limit the size of the answer, not the work, which the preflight already bounds.
 
 ## D5 — Cursor (I3 §7, §17 item 4)
 
@@ -87,9 +103,9 @@ These are initial presentation bounds, **not** measured safe limits or SLOs. I3.
 | Validation | A cursor that is not decodable, has an unknown `v`, or has a malformed field is a **validation error**. A well-formed cursor whose `query_digest` differs from the request's is `NOT_ANSWERED` / `CURSOR_QUERY_MISMATCH`. One whose `snapshot_id` is not the current snapshot is `NOT_ANSWERED` / `SNAPSHOT_NOT_AVAILABLE`, with the current `SnapshotRef`. There is never a silent restart on the latest snapshot. |
 | Authority | A cursor grants no access and attests no evidence. |
 
-## D6 — Oversized candidate: fail closed (I3 §7 option (a); §17 item 4) — owner decision
+## D6 — Source fan-out beyond the bound: fail closed (I3 §7 option (a); §17 item 4) — owner decision
 
-If a single candidate's admitted pairs exceed the 2,000-pair cap, the answer is `NOT_ANSWERED` / `RESULT_LIMIT_EXCEEDED`. The limitation names the candidate's v2 ID and pair count. No cursor past that candidate is emitted, and the message says that later candidates cannot be reached with this request. Candidates before it are not published in a refusal; a client that wants them repeats the query with a narrower `object_operation_id` or `source_selector`.
+With the D4 preflight, one candidate can have at most `S ≤ 2,000` pairs, so a single candidate can no longer exceed the pair bound after it has been read. The fail-closed case moves **before** materialization: if `S > 2,000` (D4 step 2), the answer is `NOT_ANSWERED` / `RESULT_LIMIT_EXCEEDED`, the limitation states `S` and the bound, no candidate is read and no cursor is emitted. The message says that this request cannot be answered with the current capture inventory, and that a client may narrow it with an explicit `source_selector`. This is option (a) of I3 §7: no candidate is skipped, and nothing is published as positive or absent.
 
 ## D7 — Grouping across page and cap boundaries: page-local, provisional (I3 §7; §17 item 4) — owner decision
 
@@ -122,8 +138,8 @@ v2 IDs are not ordered by Workload or Operation, so any later page can contribut
 | Phase-1 refusal (relation, dimension, sub-day) | `NOT_ANSWERED` / `UNSUPPORTED_REQUEST`, with I2's reason codes | null |
 | `snapshot_id` or cursor snapshot is not current; `SnapshotUnstable` | `NOT_ANSWERED` / `SNAPSHOT_NOT_AVAILABLE` (current `SnapshotRef` when known) | null |
 | Cursor for another query | `NOT_ANSWERED` / `CURSOR_QUERY_MISMATCH` | null |
-| Oversized candidate (D6) | `NOT_ANSWERED` / `RESULT_LIMIT_EXCEEDED` | null |
-| Evaluated, any continuation or cap, or requested comparison incomplete | `PARTIAL` / `INVENTORY_INCOMPLETE` and/or `COMPARISON_INCOMPLETE` | present |
+| Capture-source fan-out beyond the bound (D4, D6) | `NOT_ANSWERED` / `RESULT_LIMIT_EXCEEDED` | null |
+| Evaluated, any continuation or cap, a requested comparison incomplete, or a selected identity `UNKNOWN` (D10) | `PARTIAL` / `INVENTORY_INCOMPLETE`, `COMPARISON_INCOMPLETE` and/or `SELECTION_NOT_ESTABLISHED` | present |
 | Evaluated, complete, ≥1 positive, but a positive Operation's owner is missing or ambiguous | `PARTIAL` / `PROVIDER_OWNER_UNRESOLVED` | present |
 | Evaluated, complete, **no positive** assertion (including no v2 and all-nonpositive candidates) | **`NOT_ANSWERED` / `INSUFFICIENT_EVIDENCE`, with the inventory payload** | present |
 | Evaluated, complete, ≥1 positive, every positive owner resolved, comparison (if any) complete | `ANSWERED` | present |
@@ -133,7 +149,7 @@ v2 IDs are not ordered by Workload or Operation, so any later page can contribut
 - Non-applicable candidates are inventory facts (`candidates`, D10), not envelope limitations.
 - I2's local dispositions (`APPLICABLE`, `INAPPLICABLE`, `UNRESOLVED`, `AMBIGUOUS`, `CONFLICT`, `UNSUPPORTED`, `INSUFFICIENT_EVIDENCE`) and `LOCALITY_*` reasons are carried **unchanged** inside the payload; they are never envelope outcomes. There is no local `NOT_OBSERVED_IN_WINDOW` and no `LOCALITY_LEGACY_V1_UNSCOPED`.
 
-**0.6 envelope limitation codes** (closed enum, separate from the 0.5 `LimitationCode`): `UNSUPPORTED_REQUEST`, `SNAPSHOT_NOT_AVAILABLE`, `CURSOR_QUERY_MISMATCH`, `RESULT_LIMIT_EXCEEDED`, `INVENTORY_INCOMPLETE`, `COMPARISON_INCOMPLETE`, `PROVIDER_OWNER_UNRESOLVED`, `INSUFFICIENT_EVIDENCE`. A limitation is `{code, message, reasons}`, where `reasons` is the sorted list of I2 `LOCALITY_*`/internal codes it carries (possibly empty).
+**0.6 envelope limitation codes** (closed enum, separate from the 0.5 `LimitationCode`): `UNSUPPORTED_REQUEST`, `SNAPSHOT_NOT_AVAILABLE`, `CURSOR_QUERY_MISMATCH`, `RESULT_LIMIT_EXCEEDED`, `INVENTORY_INCOMPLETE`, `COMPARISON_INCOMPLETE`, `SELECTION_NOT_ESTABLISHED`, `PROVIDER_OWNER_UNRESOLVED`, `INSUFFICIENT_EVIDENCE`. A limitation is `{code, message, reasons}`, where `reasons` is the sorted list of I2 `LOCALITY_*`/internal codes it carries (possibly empty).
 
 **HTTP.** Every evaluated or refused answer is **200** with the envelope, as for the v0.5 `/api/services` routes. Only a malformed request is 422. There is no 404 for an unknown Service (D3 "not introduced") and no 409/503 split (unlike `/api/evidence` GET routes).
 
@@ -152,29 +168,46 @@ v2 IDs are not ordered by Workload or Operation, so any later page can contribut
 
 Unscanned remainder is represented only by `completeness: PARTIAL` and `next_cursor`; it is never counted or labelled absent. "Complete" means only that this evaluated inventory was fully presented (I3 §7, §9).
 
+### Selected-scope evaluation status (I3 §5, §10; §17 item 6)
+
+A Workload identity named in `caller_localities` or `compare` is a request, not evidence that the scope exists. Its status is derived only from **this** evaluated inventory, never from the identity alone:
+
+| `evaluation` | When |
+|---|---|
+| `POSITIVE` | The Workload has at least one positive assessment on this page. On a `PARTIAL` inventory it is still provisional (D7). |
+| `EVALUATED_NO_POSITIVE` | **Both:** the inventory is `COMPLETE`, **and** the identity is the resolved Workload of at least one evaluated candidate or pair in `candidates` (so a selected accepted capture tied the identity to this Service's v2 evidence under this snapshot). There is no positive assessment for it. This is **not** an absence: it says only that the evaluated evidence established no positive relation there. |
+| `UNKNOWN` | Every other case: the identity never appears as a resolved Workload in the evaluated inventory (including an invented or mistyped identity), or the inventory is `PARTIAL` and the Workload has no positive assessment yet. |
+
+`data.selection` lists each `caller_localities` entry with its `evaluation`, sorted by identity. Every `UNKNOWN` entry adds the envelope limitation `SELECTION_NOT_ESTABLISHED`, so the outcome is at best `PARTIAL`. No new graph read is made for selected identities. In particular, I3 does not query the capture inventory for an identity that no v2 candidate resolved to, so a valid but unexercised Workload stays `UNKNOWN`.
+
 ### Comparison (I3 §10; §17 item 6)
 
 For `compare = [A, B]` (A, B in request order):
 
 | Field | Content |
 |---|---|
-| `scopes` | A and B, each with `evaluation`: `POSITIVE` (has ≥1 positive assessment), `NOT_ESTABLISHED` (evaluated, complete inventory, no positive assessment), or `INCOMPLETE` (any D7 continuation) |
+| `scopes` | A and B, each with its `evaluation` from the table above |
 | `in_both` | Memberships `(provider Service or unresolved, Operation)` positive in both, with each side's qualification and assertion/assessment IDs |
 | `only_in_first`, `only_in_second` | Positive in one scope; the label means "positively evidenced here", never "absent there" |
 | `qualification_differs` | Subset of `in_both` whose qualifications differ |
-| `completeness` | `COMPLETE` only if the inventory is complete; otherwise `PARTIAL` with `COMPARISON_INCOMPLETE` |
+| `completeness` | `COMPLETE` only if the inventory is `COMPLETE` **and** neither scope is `UNKNOWN`; `PARTIAL` if the inventory is `PARTIAL`; `NOT_ESTABLISHED` if the inventory is `COMPLETE` but a scope is `UNKNOWN`. Anything but `COMPLETE` adds `COMPARISON_INCOMPLETE`. |
 
-Sorted by provider Service ID, Operation ID, then assertion ID. A Workload not in the inventory is `NOT_ESTABLISHED` on a complete page and `INCOMPLETE` otherwise, never "missing". C1 and C2 are different snapshots and are never compared within one answer (I3 §10).
+Sorted by provider Service ID, Operation ID, then assertion ID. A positive relation in A against an `UNKNOWN` or `EVALUATED_NO_POSITIVE` B is listed in `only_in_first` and is never a contradiction, an exclusivity or an absence in B. C1 and C2 are different snapshots and are never compared within one answer (I3 §10).
 
-## D11 — Same-snapshot scoped resolver (`mode: "evidence"`; I3 §12; §17 item 7)
+## D11 — Same-snapshot scoped resolver (`mode: "evidence"`; I3 §12; §17 item 7) — owner decision on capture refs
+
+The evidence mode resolves **both** kinds of ref a locality answer emits: scoped v2 refs and the capture/owner refs of its pairs and assessments. Legacy `get_evidence` admits Kubernetes `:Evidence` only when it is in `reachable_kubernetes_evidence_ids`, which is built from public deployment claims (`repository._EVIDENCE_BY_ID_QUERY`). A caller-local `CALLS` can rest on Pod/owner evidence outside that set, so routing these refs to `get_evidence` (as rev 1 of this record did) would advertise a drill-down that reports them missing.
 
 | Item | Frozen decision |
 |---|---|
-| Request | `subject_service_id` (path on REST), required `snapshot_id`, `refs`: 1–20 distinct, sorted v2 IDs matching `evidence:otel:calls-scoped:v2:<64 hex>`. Any other ref format, including a legacy evidence ID, is a validation error. Optional `object_operation_id`. |
-| Snapshot | Resolved in one stable-snapshot attempt; a non-current `snapshot_id` is `NOT_ANSWERED` / `SNAPSHOT_NOT_AVAILABLE`. Never latest data. |
-| Authority | A ref resolves only if the record exists at that snapshot, its subject is `subject_service_id`, and (if given) its object is `object_operation_id`. Otherwise its entry is `NOT_FOUND`, with no detail that distinguishes "absent" from "other caller". |
-| Fields | `id`, `subject_id`, `object_id`, `environment`, `bucket_utc_day`, `caller_cluster_uid`, `caller_pod_uid` (the v2 contract §1 names), `first_seen`, `last_seen`, `observation_count`, `correlation_mode`, `sample_trace_ids` (the v2 contract's sorted ≤5), `key_rule_id`/`version`, `normalization_rule_id`/`version`. Nothing else: no raw span, Resource, host or IP, and no query-time Workload resolution (that lives in the query answer). |
-| Isolation | Reads v2 only through the D1 (I2) reader path. `get_evidence`, `/api/evidence/*`, the legacy resolver Cypher, NL labels and v0.5 claims stay unable to return v2 (negative tests in I3.3). The evidence data never recomputes a digest, an owner or a claim. |
+| Request | `subject_service_id` (path on REST), required `snapshot_id`, `refs`: 1–20 distinct, sorted, non-empty IDs. Optional `object_operation_id`. A ref matching `evidence:otel:calls-scoped:v2:<64 hex>` is a **v2 ref**; any other ref is treated as a **capture ref**. |
+| Snapshot | Everything is resolved in one stable-snapshot attempt; a non-current `snapshot_id` is `NOT_ANSWERED` / `SNAPSHOT_NOT_AVAILABLE`. Never latest data. |
+| v2 authority | A v2 ref resolves only if the record exists at that snapshot, its `subject_id` is `subject_service_id`, and (if given) its `object_id` is `object_operation_id`. |
+| Capture authority | A capture ref resolves only if, at that snapshot, it is a Kubernetes-sourced `:Evidence` **and** it is in the `evidence_refs` of either (a) an `InfrastructureContribution` of a `KUBERNETES_POD` whose `captured_resource_uid` is the `caller_pod_uid` of a v2 record of `subject_service_id` (and of `object_operation_id`, if given), or (b) a `WORKLOAD_OWNS_POD` claim contribution whose Pod is such a Pod. These are exactly the reads I2 uses for pairs (D13.6). The rule does not depend on which capture an answer selected, so it never recomputes a pair, an owner or a claim. |
+| Not found | Any ref that fails its rule is `NOT_FOUND`, with no detail that distinguishes "absent" from "belongs to another caller" or "not capture evidence". A declared or legacy OTel evidence ID is therefore `NOT_FOUND` here; it is resolved by `get_evidence` as before. |
+| v2 fields | `id`, `subject_id`, `object_id`, `environment`, `bucket_utc_day`, `caller_cluster_uid`, `caller_pod_uid` (the v2 contract §1 names), `first_seen`, `last_seen`, `observation_count`, `correlation_mode`, `sample_trace_ids` (the v2 contract's sorted ≤5), `key_rule_id`/`version`, `normalization_rule_id`/`version`. No raw span, Resource, host or IP, and no query-time Workload resolution (that lives in the query answer). |
+| Capture fields | The existing sanitized public evidence-row projection that `get_evidence` already returns for Kubernetes evidence (no new field), plus `ref_kind`: `POD_CAPTURE` or `OWNER_CAPTURE`. |
+| Isolation | v2 is read only through the D1 (I2) reader path. `get_evidence`, `/api/evidence/*`, the legacy resolver Cypher and its `reachable_kubernetes_evidence_ids`, NL labels and v0.5 claims are **unchanged**: they still cannot return v2, and they do not gain the capture refs this mode admits (negative tests in I3.3). #323 is not widened. |
 | Outcome | `ANSWERED` if every ref resolved; `PARTIAL` if some are `NOT_FOUND`; `NOT_ANSWERED` / `INSUFFICIENT_EVIDENCE` with data if none resolved. |
 
 ## D12 — MCP argument closure (I3 §13) — Q2 owner decision
@@ -192,14 +225,31 @@ The new tool rejects every top-level argument other than `request` **before disp
 
 | Semantic field / variant | Canonical / internal source | Service | REST | MCP | Published schema | Evidence resolution |
 |---|---|---|---|---|---|---|
-| Positive Workload-local Operation assessment | I2 `QualifiedLocalEvidenceAssessment` | `get_service_dependencies_by_locality` | POST `…/dependencies/by-locality` | tool, `mode: query` | `…-answer.schema.json`, `localities[].assessments[]` | v2 IDs via `mode: evidence`; declared IDs via `get_evidence` |
+| Positive Workload-local Operation assessment | I2 `QualifiedLocalEvidenceAssessment` | `get_service_dependencies_by_locality` | POST `…/dependencies/by-locality` | tool, `mode: query` | `…-answer.schema.json`, `localities[].assessments[]` | v2 IDs and `capture_evidence_refs` via `mode: evidence`; declared IDs via `get_evidence` |
 | Provider Service group | D8 projection over I2 assessments + fenced `PROVIDES` | same | same | same | `localities[].provider_groups[]` | member refs only |
 | Unresolved owner | D8 | same | same | same | `localities[].unresolved_owner_operations[]` | member refs only |
-| Candidate + pair inventory | I2 `CandidateResult`/`PairResult`, `CandidateLimitation` | same | same | same | `candidates[]` | pair `evidence_refs` (capture/owner) via `get_evidence` |
+| Candidate + pair inventory | I2 `CandidateResult`/`PairResult`, `CandidateLimitation` | same | same | same | `candidates[]` | pair `evidence_refs` (capture/owner) via `mode: evidence` (D11 capture authority) |
 | Inventory bounds/completeness | D4, D5, D7 | same | same | same | `inventory` | — |
+| Selected-scope status | D10 selection | same | same | same | `selection`, `comparison.scopes` | — |
 | Comparison | D10 comparison | same | same | same | `comparison` | — |
 | Scoped v2 record | `ScopedObservedCallV2` via the I2 reader | `resolve_scoped_locality_evidence` | POST `…/by-locality/evidence` | tool, `mode: evidence` | `ScopedLocalityEvidenceData` | is the resolution |
+| Capture/owner evidence | Kubernetes `:Evidence` via the D13.6 Pod/owner reads | `resolve_scoped_locality_evidence` | POST `…/by-locality/evidence` | tool, `mode: evidence` | `ScopedLocalityEvidenceData` | is the resolution (D11 capture authority) |
 | Refusals and limitations | D9 | both | 200 / 422 | `NOT_ANSWERED`, validation error | envelope `limitations` | — |
+
+## D15 — Cases I3.1c must author (from the PR #386 review)
+
+In addition to the I3 §14 table, the independent I3.1c matrix includes these cases, with expected answers written from this record, not from code:
+
+| # | Case | Expected |
+|---|---|---|
+| R1 | `S = 2,001` accepted capture sources | `NOT_ANSWERED` / `RESULT_LIMIT_EXCEEDED` stating `S`; no candidate read, no cursor |
+| R2 | `S = 5`, 500 candidates | internal page `k = 400`; at most 2,000 pairs; `PARTIAL` with a cursor at the 400th v2 ID |
+| R3 | explicit current `source_selector` | `S = 1`, `k = 500`; a stale selector gives `S = 0`, zero pairs and the D13.3 disposition |
+| R4 | `compare` with an invented `WorkloadIdentity` on a complete inventory | that scope `UNKNOWN`; comparison `NOT_ESTABLISHED`; `COMPARISON_INCOMPLETE` + `SELECTION_NOT_ESTABLISHED`; `PARTIAL` |
+| R5 | `compare` with a Workload that is the resolved Workload of an `INAPPLICABLE` pair only, complete inventory | `EVALUATED_NO_POSITIVE`; the other scope's positives are `only_in_*`; no absence wording |
+| R6 | the same as R5 on a `PARTIAL` inventory | `UNKNOWN`, not `EVALUATED_NO_POSITIVE` |
+| R7 | evidence mode with a capture ref of a positive assessment whose Pod/owner evidence is **not** deployment-reachable | the ref resolves here (`POD_CAPTURE`/`OWNER_CAPTURE`); legacy `get_evidence` for the same ID is still not found |
+| R8 | evidence mode with a capture ref of another caller's Pod, a declared evidence ID, and a legacy OTel v1 evidence ID | each `NOT_FOUND`, indistinguishable |
 
 ## Traceability
 
@@ -208,9 +258,9 @@ The new tool rejects every top-level argument other than `request` **before disp
 | §17.1 exposure and tool count; §13; parent §17, §19 | D1, D12 |
 | §17.2 versioning; §11; parent §18 | D2, D14 |
 | §17.3 inventory and selectors; §5, §6 | D3, D10 |
-| §17.4 continuation and budget; §7 | D4, D5, D6, D7 |
+| §17.4 continuation and budget; §7 | D4, D5, D6, D7, D15 |
 | §17.5 provider projection; §8; I1 §5.1 (L04a, L32a, L32b) | D8 |
-| §17.6 completeness and comparison; §9, §10 | D9, D10 |
-| §17.7 scoped resolver; §12 | D11 |
+| §17.6 completeness and comparison; §9, §10 | D9, D10, D15 |
+| §17.7 scoped resolver; §12 | D11, D14, D15 |
 | §17.8 cost and qualification evidence; §14 | D4 (values are not SLOs); I3.1c matrix; I3.4 measurements |
 | §2 compatibility; D16 | D1, D12, D13 |
