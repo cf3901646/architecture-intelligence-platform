@@ -15,6 +15,8 @@ The owner merges each before the next starts. No semantic code (I3.2) or adapter
 
 **Revision 2 (PR #386 review of `858f679`):** D4/D6 bound the candidate×source fan-out with a same-fence preflight instead of a cap applied after evaluation; D10 no longer labels an identity outside the evaluated inventory as evaluated (new `EVALUATED_NO_POSITIVE`/`UNKNOWN` statuses and `SELECTION_NOT_ESTABLISHED`); D11 resolves capture/owner refs in the evidence mode under its own authority rule (owner decision), and D14 routes them there instead of to `get_evidence`. The required I3.1c cases are listed in D15.
 
+**Revision 3 (PR #386 re-review of `098e183`):** D10 `EVALUATED_NO_POSITIVE` is defined on an evaluated `APPLICABLE` *pair* whose candidate rolled up non-positive (only `APPLICABLE` pairs carry a Workload); R5 is rebuilt on I2 D4 S04 and R6b adds the unreachable-via-`INAPPLICABLE` case. I2 applicability is unchanged.
+
 ---
 
 ## D1 — Exposure and tool count (I3 §13, §17 item 1; parent §17, §19)
@@ -175,7 +177,7 @@ A Workload identity named in `caller_localities` or `compare` is a request, not 
 | `evaluation` | When |
 |---|---|
 | `POSITIVE` | The Workload has at least one positive assessment on this page. On a `PARTIAL` inventory it is still provisional (D7). |
-| `EVALUATED_NO_POSITIVE` | **Both:** the inventory is `COMPLETE`, **and** the identity is the resolved Workload of at least one evaluated candidate or pair in `candidates` (so a selected accepted capture tied the identity to this Service's v2 evidence under this snapshot). There is no positive assessment for it. This is **not** an absence: it says only that the evaluated evidence established no positive relation there. |
+| `EVALUATED_NO_POSITIVE` | **Both:** the inventory is `COMPLETE`, **and** the identity is the `workload` of at least one evaluated `APPLICABLE` **pair** in `candidates`, while no assessment for it is positive. Only an `APPLICABLE` pair carries a resolved Workload (I2 `_phase_4`; an `INAPPLICABLE`, `UNRESOLVED`, `AMBIGUOUS` or `CONFLICT` pair has none). Every `APPLICABLE` candidate with a captured UID becomes an assertion (`assess()`), so this status arises exactly when the pair's **candidate** rolled up non-positive: I2 D4 S04 (an `APPLICABLE` pair at W1 plus a conflicting second source gives candidate `CONFLICT`) or two `APPLICABLE` pairs resolving different Workload incarnations (`CONFLICT`). A selected accepted capture tied the identity to this Service's v2 evidence under this snapshot, but the candidate was not qualified. This is **not** an absence. |
 | `UNKNOWN` | Every other case: the identity never appears as a resolved Workload in the evaluated inventory (including an invented or mistyped identity), or the inventory is `PARTIAL` and the Workload has no positive assessment yet. |
 
 `data.selection` lists each `caller_localities` entry with its `evaluation`, sorted by identity. Every `UNKNOWN` entry adds the envelope limitation `SELECTION_NOT_ESTABLISHED`, so the outcome is at best `PARTIAL`. No new graph read is made for selected identities. In particular, I3 does not query the capture inventory for an identity that no v2 candidate resolved to, so a valid but unexercised Workload stays `UNKNOWN`.
@@ -246,8 +248,9 @@ In addition to the I3 §14 table, the independent I3.1c matrix includes these ca
 | R2 | `S = 5`, 500 candidates | internal page `k = 400`; at most 2,000 pairs; `PARTIAL` with a cursor at the 400th v2 ID |
 | R3 | explicit current `source_selector` | `S = 1`, `k = 500`; a stale selector gives `S = 0`, zero pairs and the D13.3 disposition |
 | R4 | `compare` with an invented `WorkloadIdentity` on a complete inventory | that scope `UNKNOWN`; comparison `NOT_ESTABLISHED`; `COMPARISON_INCOMPLETE` + `SELECTION_NOT_ESTABLISHED`; `PARTIAL` |
-| R5 | `compare` with a Workload that is the resolved Workload of an `INAPPLICABLE` pair only, complete inventory | `EVALUATED_NO_POSITIVE`; the other scope's positives are `only_in_*`; no absence wording |
-| R6 | the same as R5 on a `PARTIAL` inventory | `UNKNOWN`, not `EVALUATED_NO_POSITIVE` |
+| R5 | I2 D4 S04 construction: candidate V (P1) has source A `APPLICABLE` at W1 and source B (K2, same Pod UID) `CONFLICT` [`LOCALITY_CLUSTER_UID_CONFLICT`]; no other v2 for W1; a second candidate is positive at W2; `compare = [W1, W2]`, complete inventory | W1 `EVALUATED_NO_POSITIVE`, W2 `POSITIVE`; W2's memberships in `only_in_second`; comparison `COMPLETE`; candidate V and both pairs listed unchanged; no absence or contradiction wording |
+| R6 | the same as R5 on a `PARTIAL` inventory (a continuation exists) | W1 `UNKNOWN`, not `EVALUATED_NO_POSITIVE`; comparison `PARTIAL` |
+| R6b | `compare` naming a Workload that appears only as an `INAPPLICABLE` (wrong environment/day) candidate's would-be owner, complete inventory | `UNKNOWN`: phase 3 resolves no Workload, so the identity is never established by the inventory |
 | R7 | evidence mode with a capture ref of a positive assessment whose Pod/owner evidence is **not** deployment-reachable | the ref resolves here (`POD_CAPTURE`/`OWNER_CAPTURE`); legacy `get_evidence` for the same ID is still not found |
 | R8 | evidence mode with a capture ref of another caller's Pod, a declared evidence ID, and a legacy OTel v1 evidence ID | each `NOT_FOUND`, indistinguishable |
 
