@@ -236,6 +236,7 @@ def query_answer() -> dict[str, Any]:
                     "max_memberships": 200,
                 },
                 "i2_truncated": False,
+                "continuation": False,
                 "cap_reached": [],
                 "next_cursor": None,
                 "completeness": "COMPLETE",
@@ -716,6 +717,43 @@ def _set_inventory_partial(answer: dict) -> None:
 
 def test_a_partial_inventory_with_a_snapshot_bound_cursor_is_valid():
     _assert_answer_valid(_mutated(query_answer, _set_inventory_partial))
+
+
+def _set_continuation_page(answer: dict) -> None:
+    """D16.11: the last page of a cursor walk has no next_cursor but is still PARTIAL."""
+    _set_inventory_partial(answer)
+    _data(answer)["inventory"].update(i2_truncated=False, continuation=True, next_cursor=None)
+
+
+def test_a_final_continuation_page_is_partial_without_a_cursor():
+    _assert_answer_valid(_mutated(query_answer, _set_continuation_page))
+
+
+@pytest.mark.parametrize(
+    "change, reason",
+    [
+        ({"completeness": "COMPLETE"}, "the page continues a cursor"),
+        ({"next_cursor": "x"}, "next_cursor"),
+    ],
+)
+def test_a_continuation_page_never_claims_a_complete_inventory(change, reason):
+    def mutate(answer: dict) -> None:
+        _set_continuation_page(answer)
+        if "next_cursor" in change:
+            cursor = LocalityCursor(
+                v=1,
+                after_id=V2_W2,
+                query_digest=DIGEST,
+                snapshot_id=SNAPSHOT_ID,
+                schema_version="0.6",
+            )
+            _data(answer)["inventory"]["next_cursor"] = encode_cursor(cursor)
+        else:
+            _data(answer)["inventory"].update(change)
+
+    with pytest.raises(ValidationError) as excinfo:
+        LocalityAnswer.model_validate(_mutated(query_answer, mutate))
+    assert reason in str(excinfo.value)
 
 
 PYDANTIC_REJECT_ANSWER: dict[str, tuple[Callable[[], dict], Callable[[dict], None]]] = {

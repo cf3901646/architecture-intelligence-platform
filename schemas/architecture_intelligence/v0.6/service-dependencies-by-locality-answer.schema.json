@@ -666,6 +666,10 @@
           "title": "Considered Capture Source Count",
           "type": "integer"
         },
+        "continuation": {
+          "title": "Continuation",
+          "type": "boolean"
+        },
         "evaluated_sources": {
           "items": {
             "$ref": "#/$defs/EvaluatedSource"
@@ -706,6 +710,7 @@
         "evaluated_sources",
         "bounds",
         "i2_truncated",
+        "continuation",
         "cap_reached",
         "next_cursor",
         "completeness"

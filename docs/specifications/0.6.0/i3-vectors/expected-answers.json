@@ -102,6 +102,7 @@
             "cap_reached": [],
             "completeness": "COMPLETE",
             "considered_capture_source_count": 1,
+            "continuation": false,
             "evaluated_sources": [
               {
                 "captured_at": "2026-09-30T14:38:11Z",
@@ -487,6 +488,7 @@
             "cap_reached": [],
             "completeness": "COMPLETE",
             "considered_capture_source_count": 1,
+            "continuation": false,
             "evaluated_sources": [
               {
                 "captured_at": "2026-09-30T14:38:11Z",
@@ -837,6 +839,7 @@
             "cap_reached": [],
             "completeness": "COMPLETE",
             "considered_capture_source_count": 1,
+            "continuation": false,
             "evaluated_sources": [
               {
                 "captured_at": "2026-09-30T14:40:42Z",
@@ -1094,6 +1097,7 @@
             "cap_reached": [],
             "completeness": "COMPLETE",
             "considered_capture_source_count": 1,
+            "continuation": false,
             "evaluated_sources": [
               {
                 "captured_at": "2026-09-28T10:00:00Z",
@@ -1526,6 +1530,7 @@
             "cap_reached": [],
             "completeness": "COMPLETE",
             "considered_capture_source_count": 1,
+            "continuation": false,
             "evaluated_sources": [
               {
                 "captured_at": "2026-09-28T10:00:00Z",
@@ -1928,6 +1933,7 @@
             "cap_reached": [],
             "completeness": "COMPLETE",
             "considered_capture_source_count": 1,
+            "continuation": false,
             "evaluated_sources": [
               {
                 "captured_at": "2026-09-28T10:00:00Z",
@@ -2199,6 +2205,7 @@
             "cap_reached": [],
             "completeness": "COMPLETE",
             "considered_capture_source_count": 1,
+            "continuation": false,
             "evaluated_sources": [],
             "evaluated_v2_candidate_count": 0,
             "i2_truncated": false,
@@ -2393,6 +2400,7 @@
             "cap_reached": [],
             "completeness": "COMPLETE",
             "considered_capture_source_count": 1,
+            "continuation": false,
             "evaluated_sources": [
               {
                 "captured_at": "2026-09-28T10:00:00Z",
@@ -2623,6 +2631,7 @@
             "cap_reached": [],
             "completeness": "COMPLETE",
             "considered_capture_source_count": 1,
+            "continuation": false,
             "evaluated_sources": [
               {
                 "captured_at": "2026-09-28T10:00:00Z",
@@ -2882,6 +2891,7 @@
             "cap_reached": [],
             "completeness": "COMPLETE",
             "considered_capture_source_count": 3,
+            "continuation": false,
             "evaluated_sources": [
               {
                 "captured_at": "2026-09-28T10:00:00Z",
@@ -3266,6 +3276,7 @@
             "cap_reached": [],
             "completeness": "COMPLETE",
             "considered_capture_source_count": 1,
+            "continuation": false,
             "evaluated_sources": [
               {
                 "captured_at": "2026-09-28T10:00:00Z",
@@ -3585,6 +3596,7 @@
             "cap_reached": [],
             "completeness": "COMPLETE",
             "considered_capture_source_count": 0,
+            "continuation": false,
             "evaluated_sources": [],
             "evaluated_v2_candidate_count": 1,
             "i2_truncated": false,
@@ -3795,6 +3807,7 @@
             "cap_reached": [],
             "completeness": "COMPLETE",
             "considered_capture_source_count": 1,
+            "continuation": false,
             "evaluated_sources": [],
             "evaluated_v2_candidate_count": 1,
             "i2_truncated": false,
@@ -4086,6 +4099,7 @@
             "cap_reached": [],
             "completeness": "COMPLETE",
             "considered_capture_source_count": 2,
+            "continuation": false,
             "evaluated_sources": [
               {
                 "captured_at": "2026-09-28T10:00:00Z",
@@ -4563,6 +4577,7 @@
             "cap_reached": [],
             "completeness": "COMPLETE",
             "considered_capture_source_count": 1,
+            "continuation": false,
             "evaluated_sources": [
               {
                 "captured_at": "2026-09-28T10:00:00Z",
@@ -5084,6 +5099,7 @@
             "cap_reached": [],
             "completeness": "COMPLETE",
             "considered_capture_source_count": 1,
+            "continuation": false,
             "evaluated_sources": [
               {
                 "captured_at": "2026-09-28T10:00:00Z",
@@ -5501,6 +5517,7 @@
             "cap_reached": [],
             "completeness": "COMPLETE",
             "considered_capture_source_count": 1,
+            "continuation": false,
             "evaluated_sources": [
               {
                 "captured_at": "2026-09-28T10:00:00Z",
@@ -5905,6 +5922,7 @@
             "cap_reached": [],
             "completeness": "COMPLETE",
             "considered_capture_source_count": 1,
+            "continuation": false,
             "evaluated_sources": [
               {
                 "captured_at": "2026-09-28T10:00:00Z",
@@ -6328,6 +6346,7 @@
             "cap_reached": [],
             "completeness": "COMPLETE",
             "considered_capture_source_count": 1,
+            "continuation": false,
             "evaluated_sources": [
               {
                 "captured_at": "2026-09-28T10:00:00Z",
@@ -7552,8 +7571,18 @@
           ]
         },
         "generated_captures": {
+          "captured_at": "2026-09-28T11:00:00Z",
+          "cluster_uid": "11111111-1111-4111-8111-000000000002",
+          "completeness": "COMPLETE",
           "count": 2000,
-          "template": "K2 / namespace gen-<n> / no Pods"
+          "evidence_mode": "CAPTURED_RESOURCE",
+          "label": "G{n:04d}",
+          "n": "1..count",
+          "namespaces": [
+            "gen-{n:04d}"
+          ],
+          "pods": [],
+          "revision": "rev-g{n:04d}-1"
         },
         "observed_providers": {
           "operation:service:legacy-pricing:GET:/prices": "service:legacy-pricing (SERVER spans; observed PROVIDES)",
@@ -8170,8 +8199,24 @@
           "path": "data.inventory.evaluated_v2_candidate_count"
         },
         {
+          "equals": 400,
+          "path": "data.inventory.admitted_pair_count"
+        },
+        {
+          "equals": 1,
+          "path": "len(data.inventory.evaluated_sources)"
+        },
+        {
+          "all_equal": "APPLICABLE",
+          "path": "data.candidates[*].disposition"
+        },
+        {
           "equals": true,
           "path": "data.inventory.i2_truncated"
+        },
+        {
+          "equals": false,
+          "path": "data.inventory.continuation"
         },
         {
           "equals": "PARTIAL",
@@ -8182,12 +8227,28 @@
           "path": "outcome"
         },
         {
-          "at_most": 2000,
-          "path": "data.inventory.admitted_pair_count"
+          "equals_expr": "the 400th generated v2 ID in ascending order",
+          "path": "cursor(data.inventory.next_cursor).after_id"
         },
         {
-          "equals_expr": "the 400th v2 ID in ascending order",
-          "path": "cursor(data.inventory.next_cursor).after_id"
+          "equals": 1,
+          "path": "len(data.localities)"
+        },
+        {
+          "equals": "aaaaaaaa-0000-4000-8000-000000000001",
+          "path": "data.localities[0].workload.uid"
+        },
+        {
+          "equals": 1,
+          "path": "len(data.localities[0].assessments)"
+        },
+        {
+          "equals": "operation:service:pricing:GET:/prices",
+          "path": "data.localities[0].assessments[0].object_operation_id"
+        },
+        {
+          "equals": 400,
+          "path": "len(data.localities[0].assessments[0].observation.evidence_ids)"
         },
         {
           "all_equal": false,
@@ -8196,11 +8257,123 @@
       ],
       "id": "P01",
       "inputs": {
-        "captures": "A plus four K2 captures that pair with nothing",
-        "generated_v2": {
-          "count": 500,
-          "template": "P1 pods p0000..p0499 in W1 -> O1"
+        "captures": [
+          {
+            "captured_at": "2026-09-28T10:00:00Z",
+            "cluster_uid": "11111111-1111-4111-8111-000000000001",
+            "completeness": "COMPLETE",
+            "evidence_mode": "CAPTURED_RESOURCE",
+            "label": "A",
+            "namespaces": [
+              "shop"
+            ],
+            "pods": [
+              {
+                "name": "orders-5d9f7c-p1",
+                "namespace": "shop",
+                "owner": {
+                  "kind": "Deployment",
+                  "name": "orders",
+                  "uid": "aaaaaaaa-0000-4000-8000-000000000001"
+                },
+                "uid": "bbbbbbbb-0000-4000-8000-000000000001"
+              },
+              {
+                "name": "orders-canary-7c4b9d-p2",
+                "namespace": "shop",
+                "owner": {
+                  "kind": "Deployment",
+                  "name": "orders-canary",
+                  "uid": "aaaaaaaa-0000-4000-8000-000000000002"
+                },
+                "uid": "bbbbbbbb-0000-4000-8000-000000000002"
+              },
+              {
+                "name": "billing-6b8f5d-p9",
+                "namespace": "shop",
+                "owner": {
+                  "kind": "Deployment",
+                  "name": "billing",
+                  "uid": "aaaaaaaa-0000-4000-8000-000000000009"
+                },
+                "uid": "bbbbbbbb-0000-4000-8000-000000000009"
+              }
+            ],
+            "revision": "rev-a-1",
+            "source_instance_id": "{{SOURCE:A}}"
+          }
+        ],
+        "declarations": {
+          "declared_calls": [
+            {
+              "operation": "operation:service:pricing:GET:/prices",
+              "subject": "service:orders"
+            }
+          ],
+          "declared_operations": [
+            {
+              "id": "operation:service:pricing:GET:/prices",
+              "provider": "service:pricing"
+            }
+          ],
+          "services": [
+            "service:billing",
+            "service:catalog",
+            "service:inventory",
+            "service:legacy-pricing",
+            "service:orders",
+            "service:pricing"
+          ]
         },
+        "generated_captures": {
+          "captured_at": "2026-09-28T11:00:00Z",
+          "cluster_uid": "11111111-1111-4111-8111-000000000002",
+          "completeness": "COMPLETE",
+          "count": 4,
+          "evidence_mode": "CAPTURED_RESOURCE",
+          "label": "G{n:04d}",
+          "n": "1..count",
+          "namespaces": [
+            "gen-{n:04d}"
+          ],
+          "pods": [],
+          "revision": "rev-g{n:04d}-1"
+        },
+        "generated_pods": {
+          "capture": "A",
+          "count": 500,
+          "n": "0..count-1",
+          "name": "orders-gen-{n:04d}",
+          "namespace": "shop",
+          "owner": {
+            "kind": "Deployment",
+            "name": "orders",
+            "uid": "aaaaaaaa-0000-4000-8000-000000000001"
+          },
+          "uid": "bbbbbbbb-1000-4000-8000-{n:012d}"
+        },
+        "generated_v2": {
+          "bucket_utc_day": "2026-09-28",
+          "caller_cluster_uid": "11111111-1111-4111-8111-000000000001",
+          "correlation_mode": "CLIENT_SERVER",
+          "count": 500,
+          "environment": "production",
+          "n": "0..count-1",
+          "object_id": "operation:service:pricing:GET:/prices",
+          "pod": "generated Pod n",
+          "spans": [
+            {
+              "timestamp": "2026-09-28T09:00:00Z",
+              "trace_id": "sha256('gen', n)[:32]"
+            }
+          ],
+          "subject_id": "service:orders"
+        },
+        "observed_providers": {
+          "operation:service:legacy-pricing:GET:/prices": "service:legacy-pricing (SERVER spans; observed PROVIDES)",
+          "operation:service:pricing:GET:/prices/{id}": "service:pricing (SERVER spans; observed PROVIDES)"
+        },
+        "v2": [],
         "world": "K"
       },
       "kind": "property",
@@ -8212,7 +8385,7 @@
       "steps": [
         "query without cursor"
       ],
-      "title": "R2: S = 5 and 500 candidates read k = 400"
+      "title": "R2: S = 5 and 500 resolvable candidates read k = 400"
     },
     {
       "assert": [
@@ -8227,6 +8400,36 @@
           "step": 1
         },
         {
+          "all_equal": "APPLICABLE",
+          "path": "data.candidates[*].disposition",
+          "step": 1
+        },
+        {
+          "equals": 1,
+          "path": "len(data.localities)",
+          "step": 1
+        },
+        {
+          "equals": "aaaaaaaa-0000-4000-8000-000000000001",
+          "path": "data.localities[0].workload.uid",
+          "step": 1
+        },
+        {
+          "equals": 1,
+          "path": "len(data.localities[0].assessments)",
+          "step": 1
+        },
+        {
+          "equals": "operation:service:pricing:GET:/prices",
+          "path": "data.localities[0].assessments[0].object_operation_id",
+          "step": 1
+        },
+        {
+          "equals": 500,
+          "path": "len(data.localities[0].assessments[0].observation.evidence_ids)",
+          "step": 1
+        },
+        {
           "all_equal": false,
           "path": "data.localities[*].lineage_complete",
           "step": 1
@@ -8237,8 +8440,53 @@
           "step": 2
         },
         {
-          "equals": "COMPLETE",
+          "equals": true,
+          "path": "data.inventory.continuation",
+          "step": 2
+        },
+        {
+          "equals": null,
+          "path": "data.inventory.next_cursor",
+          "step": 2
+        },
+        {
+          "equals": "PARTIAL",
           "path": "data.inventory.completeness",
+          "step": 2
+        },
+        {
+          "equals": "PARTIAL",
+          "path": "outcome",
+          "step": 2
+        },
+        {
+          "contains": "INVENTORY_INCOMPLETE",
+          "path": "limitations[*].code",
+          "step": 2
+        },
+        {
+          "equals": 1,
+          "path": "len(data.localities)",
+          "step": 2
+        },
+        {
+          "equals": "aaaaaaaa-0000-4000-8000-000000000001",
+          "path": "data.localities[0].workload.uid",
+          "step": 2
+        },
+        {
+          "equals": 1,
+          "path": "len(data.localities[0].assessments)",
+          "step": 2
+        },
+        {
+          "equals": "operation:service:pricing:GET:/prices",
+          "path": "data.localities[0].assessments[0].object_operation_id",
+          "step": 2
+        },
+        {
+          "all_equal": false,
+          "path": "data.localities[*].lineage_complete",
           "step": 2
         },
         {
@@ -8247,17 +8495,115 @@
           "step": 2
         },
         {
-          "equals_expr": "all 501 v2 IDs, each exactly once",
+          "equals_expr": "all 501 generated v2 IDs, each exactly once",
           "path": "union of candidates[*].v2_evidence_id over both pages"
         }
       ],
       "id": "P02",
       "inputs": {
-        "captures": "A only",
-        "generated_v2": {
-          "count": 501,
-          "template": "pods in W1 -> O1"
+        "captures": [
+          {
+            "captured_at": "2026-09-28T10:00:00Z",
+            "cluster_uid": "11111111-1111-4111-8111-000000000001",
+            "completeness": "COMPLETE",
+            "evidence_mode": "CAPTURED_RESOURCE",
+            "label": "A",
+            "namespaces": [
+              "shop"
+            ],
+            "pods": [
+              {
+                "name": "orders-5d9f7c-p1",
+                "namespace": "shop",
+                "owner": {
+                  "kind": "Deployment",
+                  "name": "orders",
+                  "uid": "aaaaaaaa-0000-4000-8000-000000000001"
+                },
+                "uid": "bbbbbbbb-0000-4000-8000-000000000001"
+              },
+              {
+                "name": "orders-canary-7c4b9d-p2",
+                "namespace": "shop",
+                "owner": {
+                  "kind": "Deployment",
+                  "name": "orders-canary",
+                  "uid": "aaaaaaaa-0000-4000-8000-000000000002"
+                },
+                "uid": "bbbbbbbb-0000-4000-8000-000000000002"
+              },
+              {
+                "name": "billing-6b8f5d-p9",
+                "namespace": "shop",
+                "owner": {
+                  "kind": "Deployment",
+                  "name": "billing",
+                  "uid": "aaaaaaaa-0000-4000-8000-000000000009"
+                },
+                "uid": "bbbbbbbb-0000-4000-8000-000000000009"
+              }
+            ],
+            "revision": "rev-a-1",
+            "source_instance_id": "{{SOURCE:A}}"
+          }
+        ],
+        "declarations": {
+          "declared_calls": [
+            {
+              "operation": "operation:service:pricing:GET:/prices",
+              "subject": "service:orders"
+            }
+          ],
+          "declared_operations": [
+            {
+              "id": "operation:service:pricing:GET:/prices",
+              "provider": "service:pricing"
+            }
+          ],
+          "services": [
+            "service:billing",
+            "service:catalog",
+            "service:inventory",
+            "service:legacy-pricing",
+            "service:orders",
+            "service:pricing"
+          ]
         },
+        "generated_pods": {
+          "capture": "A",
+          "count": 501,
+          "n": "0..count-1",
+          "name": "orders-gen-{n:04d}",
+          "namespace": "shop",
+          "owner": {
+            "kind": "Deployment",
+            "name": "orders",
+            "uid": "aaaaaaaa-0000-4000-8000-000000000001"
+          },
+          "uid": "bbbbbbbb-1000-4000-8000-{n:012d}"
+        },
+        "generated_v2": {
+          "bucket_utc_day": "2026-09-28",
+          "caller_cluster_uid": "11111111-1111-4111-8111-000000000001",
+          "correlation_mode": "CLIENT_SERVER",
+          "count": 501,
+          "environment": "production",
+          "n": "0..count-1",
+          "object_id": "operation:service:pricing:GET:/prices",
+          "pod": "generated Pod n",
+          "spans": [
+            {
+              "timestamp": "2026-09-28T09:00:00Z",
+              "trace_id": "sha256('gen', n)[:32]"
+            }
+          ],
+          "subject_id": "service:orders"
+        },
+        "observed_providers": {
+          "operation:service:legacy-pricing:GET:/prices": "service:legacy-pricing (SERVER spans; observed PROVIDES)",
+          "operation:service:pricing:GET:/prices/{id}": "service:pricing (SERVER spans; observed PROVIDES)"
+        },
+        "v2": [],
         "world": "K"
       },
       "kind": "property",
@@ -8265,13 +8611,14 @@
         "I3 §14 'Complete and incomplete inventory'",
         "I3 §7",
         "D5",
-        "D7"
+        "D7",
+        "D16.11"
       ],
       "steps": [
         "page 1: query",
         "page 2: same query + page 1 next_cursor"
       ],
-      "title": "I2 page boundary: 501 candidates, two pages, one snapshot"
+      "title": "I2 page boundary: 501 resolvable candidates, two pages, one snapshot"
     },
     {
       "assert": [
@@ -8285,6 +8632,11 @@
             "WORKLOADS"
           ],
           "path": "data.inventory.cap_reached",
+          "step": 1
+        },
+        {
+          "equals": 50,
+          "path": "data.inventory.evaluated_v2_candidate_count",
           "step": 1
         },
         {
@@ -8303,39 +8655,162 @@
           "step": 1
         },
         {
+          "equals": true,
+          "path": "data.inventory.continuation",
+          "step": 2
+        },
+        {
+          "equals": 10,
+          "path": "data.inventory.evaluated_v2_candidate_count",
+          "step": 2
+        },
+        {
           "equals": 10,
           "path": "len(data.localities)",
           "step": 2
         },
         {
-          "equals": "COMPLETE",
+          "equals": null,
+          "path": "data.inventory.next_cursor",
+          "step": 2
+        },
+        {
+          "equals": "PARTIAL",
           "path": "data.inventory.completeness",
           "step": 2
+        },
+        {
+          "equals_expr": "all 60 generated Workload UIDs, each exactly once",
+          "path": "union of localities[*].workload.uid over both pages"
         }
       ],
       "id": "P03",
       "inputs": {
-        "captures": "A only",
-        "generated_v2": {
-          "count": 60,
-          "template": "60 Workloads w00..w59, one Pod each -> O1"
+        "captures": [
+          {
+            "captured_at": "2026-09-28T10:00:00Z",
+            "cluster_uid": "11111111-1111-4111-8111-000000000001",
+            "completeness": "COMPLETE",
+            "evidence_mode": "CAPTURED_RESOURCE",
+            "label": "A",
+            "namespaces": [
+              "shop"
+            ],
+            "pods": [
+              {
+                "name": "orders-5d9f7c-p1",
+                "namespace": "shop",
+                "owner": {
+                  "kind": "Deployment",
+                  "name": "orders",
+                  "uid": "aaaaaaaa-0000-4000-8000-000000000001"
+                },
+                "uid": "bbbbbbbb-0000-4000-8000-000000000001"
+              },
+              {
+                "name": "orders-canary-7c4b9d-p2",
+                "namespace": "shop",
+                "owner": {
+                  "kind": "Deployment",
+                  "name": "orders-canary",
+                  "uid": "aaaaaaaa-0000-4000-8000-000000000002"
+                },
+                "uid": "bbbbbbbb-0000-4000-8000-000000000002"
+              },
+              {
+                "name": "billing-6b8f5d-p9",
+                "namespace": "shop",
+                "owner": {
+                  "kind": "Deployment",
+                  "name": "billing",
+                  "uid": "aaaaaaaa-0000-4000-8000-000000000009"
+                },
+                "uid": "bbbbbbbb-0000-4000-8000-000000000009"
+              }
+            ],
+            "revision": "rev-a-1",
+            "source_instance_id": "{{SOURCE:A}}"
+          }
+        ],
+        "declarations": {
+          "declared_calls": [
+            {
+              "operation": "operation:service:pricing:GET:/prices",
+              "subject": "service:orders"
+            }
+          ],
+          "declared_operations": [
+            {
+              "id": "operation:service:pricing:GET:/prices",
+              "provider": "service:pricing"
+            }
+          ],
+          "services": [
+            "service:billing",
+            "service:catalog",
+            "service:inventory",
+            "service:legacy-pricing",
+            "service:orders",
+            "service:pricing"
+          ]
         },
+        "generated_pods": {
+          "capture": "A",
+          "count": 60,
+          "n": "0..count-1",
+          "name": "orders-gen-{n:04d}",
+          "namespace": "shop",
+          "owner": {
+            "kind": "Deployment",
+            "name": "orders-w{n:02d}",
+            "uid": "aaaaaaaa-1000-4000-8000-{n:012d}"
+          },
+          "uid": "bbbbbbbb-1000-4000-8000-{n:012d}"
+        },
+        "generated_v2": {
+          "bucket_utc_day": "2026-09-28",
+          "caller_cluster_uid": "11111111-1111-4111-8111-000000000001",
+          "correlation_mode": "CLIENT_SERVER",
+          "count": 60,
+          "environment": "production",
+          "n": "0..count-1",
+          "object_id": "operation:service:pricing:GET:/prices",
+          "pod": "generated Pod n",
+          "spans": [
+            {
+              "timestamp": "2026-09-28T09:00:00Z",
+              "trace_id": "sha256('gen', n)[:32]"
+            }
+          ],
+          "subject_id": "service:orders"
+        },
+        "observed_providers": {
+          "operation:service:legacy-pricing:GET:/prices": "service:legacy-pricing (SERVER spans; observed PROVIDES)",
+          "operation:service:pricing:GET:/prices/{id}": "service:pricing (SERVER spans; observed PROVIDES)"
+        },
+        "v2": [],
         "world": "K"
       },
       "kind": "property",
       "spec_refs": [
         "I3 §14 'I2 page or I3 presentation cap'",
         "D4",
-        "D7"
+        "D7",
+        "D16.11"
       ],
       "steps": [
         "page 1: query",
-        "page 2: query + cursor"
+        "page 2: query + page 1 next_cursor"
       ],
       "title": "I3 Workload cap splits the page although I2 truncated = false"
     },
     {
       "assert": [
+        {
+          "equals": 1,
+          "path": "len(data.localities)",
+          "step": 1
+        },
         {
           "equals": "CURSOR_QUERY_MISMATCH",
           "path": "limitations[0].code",
@@ -8359,10 +8834,109 @@
       ],
       "id": "P04",
       "inputs": {
-        "captures": "A only",
-        "generated_v2": {
-          "count": 501
+        "captures": [
+          {
+            "captured_at": "2026-09-28T10:00:00Z",
+            "cluster_uid": "11111111-1111-4111-8111-000000000001",
+            "completeness": "COMPLETE",
+            "evidence_mode": "CAPTURED_RESOURCE",
+            "label": "A",
+            "namespaces": [
+              "shop"
+            ],
+            "pods": [
+              {
+                "name": "orders-5d9f7c-p1",
+                "namespace": "shop",
+                "owner": {
+                  "kind": "Deployment",
+                  "name": "orders",
+                  "uid": "aaaaaaaa-0000-4000-8000-000000000001"
+                },
+                "uid": "bbbbbbbb-0000-4000-8000-000000000001"
+              },
+              {
+                "name": "orders-canary-7c4b9d-p2",
+                "namespace": "shop",
+                "owner": {
+                  "kind": "Deployment",
+                  "name": "orders-canary",
+                  "uid": "aaaaaaaa-0000-4000-8000-000000000002"
+                },
+                "uid": "bbbbbbbb-0000-4000-8000-000000000002"
+              },
+              {
+                "name": "billing-6b8f5d-p9",
+                "namespace": "shop",
+                "owner": {
+                  "kind": "Deployment",
+                  "name": "billing",
+                  "uid": "aaaaaaaa-0000-4000-8000-000000000009"
+                },
+                "uid": "bbbbbbbb-0000-4000-8000-000000000009"
+              }
+            ],
+            "revision": "rev-a-1",
+            "source_instance_id": "{{SOURCE:A}}"
+          }
+        ],
+        "declarations": {
+          "declared_calls": [
+            {
+              "operation": "operation:service:pricing:GET:/prices",
+              "subject": "service:orders"
+            }
+          ],
+          "declared_operations": [
+            {
+              "id": "operation:service:pricing:GET:/prices",
+              "provider": "service:pricing"
+            }
+          ],
+          "services": [
+            "service:billing",
+            "service:catalog",
+            "service:inventory",
+            "service:legacy-pricing",
+            "service:orders",
+            "service:pricing"
+          ]
         },
+        "generated_pods": {
+          "capture": "A",
+          "count": 501,
+          "n": "0..count-1",
+          "name": "orders-gen-{n:04d}",
+          "namespace": "shop",
+          "owner": {
+            "kind": "Deployment",
+            "name": "orders",
+            "uid": "aaaaaaaa-0000-4000-8000-000000000001"
+          },
+          "uid": "bbbbbbbb-1000-4000-8000-{n:012d}"
+        },
+        "generated_v2": {
+          "bucket_utc_day": "2026-09-28",
+          "caller_cluster_uid": "11111111-1111-4111-8111-000000000001",
+          "correlation_mode": "CLIENT_SERVER",
+          "count": 501,
+          "environment": "production",
+          "n": "0..count-1",
+          "object_id": "operation:service:pricing:GET:/prices",
+          "pod": "generated Pod n",
+          "spans": [
+            {
+              "timestamp": "2026-09-28T09:00:00Z",
+              "trace_id": "sha256('gen', n)[:32]"
+            }
+          ],
+          "subject_id": "service:orders"
+        },
+        "observed_providers": {
+          "operation:service:legacy-pricing:GET:/prices": "service:legacy-pricing (SERVER spans; observed PROVIDES)",
+          "operation:service:pricing:GET:/prices/{id}": "service:pricing (SERVER spans; observed PROVIDES)"
+        },
+        "v2": [],
         "world": "K"
       },
       "kind": "property",
@@ -8381,6 +8955,16 @@
     },
     {
       "assert": [
+        {
+          "equals": 1,
+          "path": "len(data.localities)",
+          "step": 1
+        },
+        {
+          "at_least": 1,
+          "path": "len(data.entries)",
+          "step": 2
+        },
         {
           "all_equal": "RESOLVED",
           "path": "data.entries[*].status",
@@ -8407,9 +8991,105 @@
       ],
       "id": "P05",
       "inputs": {
-        "captures": "A only (no Service-level DEPLOYED_AS declared)",
+        "captures": [
+          {
+            "captured_at": "2026-09-28T10:00:00Z",
+            "cluster_uid": "11111111-1111-4111-8111-000000000001",
+            "completeness": "COMPLETE",
+            "evidence_mode": "CAPTURED_RESOURCE",
+            "label": "A",
+            "namespaces": [
+              "shop"
+            ],
+            "pods": [
+              {
+                "name": "orders-5d9f7c-p1",
+                "namespace": "shop",
+                "owner": {
+                  "kind": "Deployment",
+                  "name": "orders",
+                  "uid": "aaaaaaaa-0000-4000-8000-000000000001"
+                },
+                "uid": "bbbbbbbb-0000-4000-8000-000000000001"
+              },
+              {
+                "name": "orders-canary-7c4b9d-p2",
+                "namespace": "shop",
+                "owner": {
+                  "kind": "Deployment",
+                  "name": "orders-canary",
+                  "uid": "aaaaaaaa-0000-4000-8000-000000000002"
+                },
+                "uid": "bbbbbbbb-0000-4000-8000-000000000002"
+              },
+              {
+                "name": "billing-6b8f5d-p9",
+                "namespace": "shop",
+                "owner": {
+                  "kind": "Deployment",
+                  "name": "billing",
+                  "uid": "aaaaaaaa-0000-4000-8000-000000000009"
+                },
+                "uid": "bbbbbbbb-0000-4000-8000-000000000009"
+              }
+            ],
+            "revision": "rev-a-1",
+            "source_instance_id": "{{SOURCE:A}}"
+          }
+        ],
+        "declarations": {
+          "declared_calls": [
+            {
+              "operation": "operation:service:pricing:GET:/prices",
+              "subject": "service:orders"
+            }
+          ],
+          "declared_operations": [
+            {
+              "id": "operation:service:pricing:GET:/prices",
+              "provider": "service:pricing"
+            }
+          ],
+          "services": [
+            "service:billing",
+            "service:catalog",
+            "service:inventory",
+            "service:legacy-pricing",
+            "service:orders",
+            "service:pricing"
+          ]
+        },
+        "note": "no Service-level DEPLOYED_AS is declared",
+        "observed_providers": {
+          "operation:service:legacy-pricing:GET:/prices": "service:legacy-pricing (SERVER spans; observed PROVIDES)",
+          "operation:service:pricing:GET:/prices/{id}": "service:pricing (SERVER spans; observed PROVIDES)"
+        },
         "v2": [
-          "evidence:otel:calls-scoped:v2:6fe04b27611a90384ef356476e455f779b97d755989b828acf47ef445260d034"
+          {
+            "bucket_utc_day": "2026-09-28",
+            "caller_cluster_uid": "11111111-1111-4111-8111-000000000001",
+            "caller_pod_uid": "bbbbbbbb-0000-4000-8000-000000000001",
+            "client_resource": {
+              "k8s.deployment.name": "orders",
+              "k8s.namespace.name": "shop",
+              "k8s.pod.name": "orders-5d9f7c-p1"
+            },
+            "correlation_mode": "CLIENT_SERVER",
+            "environment": "production",
+            "id": "evidence:otel:calls-scoped:v2:6fe04b27611a90384ef356476e455f779b97d755989b828acf47ef445260d034",
+            "object_id": "operation:service:pricing:GET:/prices",
+            "spans": [
+              {
+                "timestamp": "2026-09-28T09:00:00Z",
+                "trace_id": "29b3aae364c59728b6fbb1f57986fbcd"
+              },
+              {
+                "timestamp": "2026-09-28T09:30:00Z",
+                "trace_id": "404745e57f01a3f91b71e73cc9d8deab"
+              }
+            ],
+            "subject_id": "service:orders"
+          }
         ],
         "world": "K"
       },
@@ -8439,10 +9119,129 @@
       ],
       "id": "P06",
       "inputs": {
-        "captures": "A only",
+        "captures": [
+          {
+            "captured_at": "2026-09-28T10:00:00Z",
+            "cluster_uid": "11111111-1111-4111-8111-000000000001",
+            "completeness": "COMPLETE",
+            "evidence_mode": "CAPTURED_RESOURCE",
+            "label": "A",
+            "namespaces": [
+              "shop"
+            ],
+            "pods": [
+              {
+                "name": "orders-5d9f7c-p1",
+                "namespace": "shop",
+                "owner": {
+                  "kind": "Deployment",
+                  "name": "orders",
+                  "uid": "aaaaaaaa-0000-4000-8000-000000000001"
+                },
+                "uid": "bbbbbbbb-0000-4000-8000-000000000001"
+              },
+              {
+                "name": "orders-canary-7c4b9d-p2",
+                "namespace": "shop",
+                "owner": {
+                  "kind": "Deployment",
+                  "name": "orders-canary",
+                  "uid": "aaaaaaaa-0000-4000-8000-000000000002"
+                },
+                "uid": "bbbbbbbb-0000-4000-8000-000000000002"
+              },
+              {
+                "name": "billing-6b8f5d-p9",
+                "namespace": "shop",
+                "owner": {
+                  "kind": "Deployment",
+                  "name": "billing",
+                  "uid": "aaaaaaaa-0000-4000-8000-000000000009"
+                },
+                "uid": "bbbbbbbb-0000-4000-8000-000000000009"
+              }
+            ],
+            "revision": "rev-a-1",
+            "source_instance_id": "{{SOURCE:A}}"
+          }
+        ],
+        "declarations": {
+          "declared_calls": [
+            {
+              "operation": "operation:service:pricing:GET:/prices",
+              "subject": "service:orders"
+            }
+          ],
+          "declared_operations": [
+            {
+              "id": "operation:service:pricing:GET:/prices",
+              "provider": "service:pricing"
+            }
+          ],
+          "services": [
+            "service:billing",
+            "service:catalog",
+            "service:inventory",
+            "service:legacy-pricing",
+            "service:orders",
+            "service:pricing"
+          ]
+        },
+        "observed_providers": {
+          "operation:service:legacy-pricing:GET:/prices": "service:legacy-pricing (SERVER spans; observed PROVIDES)",
+          "operation:service:pricing:GET:/prices/{id}": "service:pricing (SERVER spans; observed PROVIDES)"
+        },
         "v2": [
-          "evidence:otel:calls-scoped:v2:6fe04b27611a90384ef356476e455f779b97d755989b828acf47ef445260d034",
-          "evidence:otel:calls-scoped:v2:67e2ec5c27a75a98bd73419b6521da777df8532f7845cb1a3b1c07831c06fd6f"
+          {
+            "bucket_utc_day": "2026-09-28",
+            "caller_cluster_uid": "11111111-1111-4111-8111-000000000001",
+            "caller_pod_uid": "bbbbbbbb-0000-4000-8000-000000000001",
+            "client_resource": {
+              "k8s.deployment.name": "orders",
+              "k8s.namespace.name": "shop",
+              "k8s.pod.name": "orders-5d9f7c-p1"
+            },
+            "correlation_mode": "CLIENT_SERVER",
+            "environment": "production",
+            "id": "evidence:otel:calls-scoped:v2:6fe04b27611a90384ef356476e455f779b97d755989b828acf47ef445260d034",
+            "object_id": "operation:service:pricing:GET:/prices",
+            "spans": [
+              {
+                "timestamp": "2026-09-28T09:00:00Z",
+                "trace_id": "29b3aae364c59728b6fbb1f57986fbcd"
+              },
+              {
+                "timestamp": "2026-09-28T09:30:00Z",
+                "trace_id": "404745e57f01a3f91b71e73cc9d8deab"
+              }
+            ],
+            "subject_id": "service:orders"
+          },
+          {
+            "bucket_utc_day": "2026-09-28",
+            "caller_cluster_uid": "11111111-1111-4111-8111-000000000001",
+            "caller_pod_uid": "bbbbbbbb-0000-4000-8000-000000000002",
+            "client_resource": {
+              "k8s.deployment.name": "orders-canary",
+              "k8s.namespace.name": "shop",
+              "k8s.pod.name": "orders-canary-7c4b9d-p2"
+            },
+            "correlation_mode": "CLIENT_SERVER",
+            "environment": "production",
+            "id": "evidence:otel:calls-scoped:v2:67e2ec5c27a75a98bd73419b6521da777df8532f7845cb1a3b1c07831c06fd6f",
+            "object_id": "operation:service:legacy-pricing:GET:/prices",
+            "spans": [
+              {
+                "timestamp": "2026-09-28T09:00:00Z",
+                "trace_id": "f96840d3a1bb566001f29732f6d627c9"
+              },
+              {
+                "timestamp": "2026-09-28T09:30:00Z",
+                "trace_id": "30b4e6853eb4a7273d77de51bdb6d4c5"
+              }
+            ],
+            "subject_id": "service:orders"
+          }
         ],
         "world": "K"
       },
@@ -8490,48 +9289,10 @@
     {
       "assert": [
         {
-          "equals": "PARTIAL",
-          "path": "data.inventory.completeness"
+          "equals": 2,
+          "path": "len(data.localities)",
+          "step": 1
         },
-        {
-          "equals": "UNKNOWN",
-          "path": "data.comparison.scopes[0].evaluation"
-        },
-        {
-          "equals": "PARTIAL",
-          "path": "data.comparison.completeness"
-        },
-        {
-          "contains": "SELECTION_NOT_ESTABLISHED",
-          "path": "limitations[*].code"
-        },
-        {
-          "contains": "COMPARISON_INCOMPLETE",
-          "path": "limitations[*].code"
-        }
-      ],
-      "id": "P09",
-      "inputs": {
-        "generated_v2": {
-          "count": 500,
-          "template": "extra W2 Pods -> O2, sorting after X14's"
-        },
-        "inputs_of": "X14",
-        "world": "K"
-      },
-      "kind": "property",
-      "spec_refs": [
-        "D15 R6",
-        "D10",
-        "D7"
-      ],
-      "steps": [
-        "query with compare [W1, W2] (page 1 is PARTIAL)"
-      ],
-      "title": "R6: the R5 construction on a PARTIAL inventory is UNKNOWN, not EVALUATED_NO_POSITIVE"
-    },
-    {
-      "assert": [
         {
           "equals": "SNAPSHOT_NOT_AVAILABLE",
           "path": "limitations[0].code",
@@ -8561,6 +9322,234 @@
         "query without snapshot_id"
       ],
       "title": "C1 -> C2: a C1-snapshot request after C2 is imported"
+    },
+    {
+      "assert": [
+        {
+          "equals": true,
+          "path": "data.inventory.i2_truncated"
+        },
+        {
+          "equals": "PARTIAL",
+          "path": "data.inventory.completeness"
+        },
+        {
+          "contains": "aaaaaaaa-0000-4000-8000-000000000002",
+          "path": "data.localities[*].workload.uid"
+        },
+        {
+          "equals": "UNKNOWN",
+          "path": "data.comparison.scopes[0].evaluation"
+        },
+        {
+          "equals": "POSITIVE",
+          "path": "data.comparison.scopes[1].evaluation"
+        },
+        {
+          "equals": "PARTIAL",
+          "path": "data.comparison.completeness"
+        },
+        {
+          "contains": "SELECTION_NOT_ESTABLISHED",
+          "path": "limitations[*].code"
+        },
+        {
+          "contains": "COMPARISON_INCOMPLETE",
+          "path": "limitations[*].code"
+        }
+      ],
+      "id": "P09",
+      "inputs": {
+        "captures": [
+          {
+            "captured_at": "2026-09-28T10:00:00Z",
+            "cluster_uid": "11111111-1111-4111-8111-000000000001",
+            "completeness": "COMPLETE",
+            "evidence_mode": "CAPTURED_RESOURCE",
+            "label": "A",
+            "namespaces": [
+              "shop"
+            ],
+            "pods": [
+              {
+                "name": "orders-5d9f7c-p1",
+                "namespace": "shop",
+                "owner": {
+                  "kind": "Deployment",
+                  "name": "orders",
+                  "uid": "aaaaaaaa-0000-4000-8000-000000000001"
+                },
+                "uid": "bbbbbbbb-0000-4000-8000-000000000001"
+              },
+              {
+                "name": "orders-canary-7c4b9d-p2",
+                "namespace": "shop",
+                "owner": {
+                  "kind": "Deployment",
+                  "name": "orders-canary",
+                  "uid": "aaaaaaaa-0000-4000-8000-000000000002"
+                },
+                "uid": "bbbbbbbb-0000-4000-8000-000000000002"
+              },
+              {
+                "name": "billing-6b8f5d-p9",
+                "namespace": "shop",
+                "owner": {
+                  "kind": "Deployment",
+                  "name": "billing",
+                  "uid": "aaaaaaaa-0000-4000-8000-000000000009"
+                },
+                "uid": "bbbbbbbb-0000-4000-8000-000000000009"
+              }
+            ],
+            "revision": "rev-a-1",
+            "source_instance_id": "{{SOURCE:A}}"
+          },
+          {
+            "captured_at": "2026-09-28T10:15:00Z",
+            "cluster_uid": "11111111-1111-4111-8111-000000000002",
+            "completeness": "COMPLETE",
+            "evidence_mode": "CAPTURED_RESOURCE",
+            "label": "X",
+            "namespaces": [
+              "shop"
+            ],
+            "pods": [
+              {
+                "name": "orders-5d9f7c-p1",
+                "namespace": "shop",
+                "owner": {
+                  "kind": "Deployment",
+                  "name": "orders",
+                  "uid": "cccccccc-0000-4000-8000-000000000001"
+                },
+                "uid": "bbbbbbbb-0000-4000-8000-000000000001"
+              }
+            ],
+            "revision": "rev-x-1",
+            "source_instance_id": "{{SOURCE:X}}"
+          }
+        ],
+        "declarations": {
+          "declared_calls": [
+            {
+              "operation": "operation:service:pricing:GET:/prices",
+              "subject": "service:orders"
+            }
+          ],
+          "declared_operations": [
+            {
+              "id": "operation:service:pricing:GET:/prices",
+              "provider": "service:pricing"
+            }
+          ],
+          "services": [
+            "service:billing",
+            "service:catalog",
+            "service:inventory",
+            "service:legacy-pricing",
+            "service:orders",
+            "service:pricing"
+          ]
+        },
+        "generated_pods": {
+          "capture": "A",
+          "count": 500,
+          "n": "0..count-1",
+          "name": "orders-gen-{n:04d}",
+          "namespace": "shop",
+          "owner": {
+            "kind": "Deployment",
+            "name": "orders-canary",
+            "uid": "aaaaaaaa-0000-4000-8000-000000000002"
+          },
+          "uid": "bbbbbbbb-1000-4000-8000-{n:012d}"
+        },
+        "generated_v2": {
+          "bucket_utc_day": "2026-09-28",
+          "caller_cluster_uid": "11111111-1111-4111-8111-000000000001",
+          "correlation_mode": "CLIENT_SERVER",
+          "count": 500,
+          "environment": "production",
+          "n": "0..count-1",
+          "object_id": "operation:service:legacy-pricing:GET:/prices",
+          "pod": "generated Pod n",
+          "spans": [
+            {
+              "timestamp": "2026-09-28T09:00:00Z",
+              "trace_id": "sha256('gen', n)[:32]"
+            }
+          ],
+          "subject_id": "service:orders"
+        },
+        "observed_providers": {
+          "operation:service:legacy-pricing:GET:/prices": "service:legacy-pricing (SERVER spans; observed PROVIDES)",
+          "operation:service:pricing:GET:/prices/{id}": "service:pricing (SERVER spans; observed PROVIDES)"
+        },
+        "v2": [
+          {
+            "bucket_utc_day": "2026-09-28",
+            "caller_cluster_uid": "11111111-1111-4111-8111-000000000001",
+            "caller_pod_uid": "bbbbbbbb-0000-4000-8000-000000000001",
+            "client_resource": {
+              "k8s.deployment.name": "orders",
+              "k8s.namespace.name": "shop",
+              "k8s.pod.name": "orders-5d9f7c-p1"
+            },
+            "correlation_mode": "CLIENT_SERVER",
+            "environment": "production",
+            "id": "evidence:otel:calls-scoped:v2:6fe04b27611a90384ef356476e455f779b97d755989b828acf47ef445260d034",
+            "object_id": "operation:service:pricing:GET:/prices",
+            "spans": [
+              {
+                "timestamp": "2026-09-28T09:00:00Z",
+                "trace_id": "29b3aae364c59728b6fbb1f57986fbcd"
+              },
+              {
+                "timestamp": "2026-09-28T09:30:00Z",
+                "trace_id": "404745e57f01a3f91b71e73cc9d8deab"
+              }
+            ],
+            "subject_id": "service:orders"
+          },
+          {
+            "bucket_utc_day": "2026-09-28",
+            "caller_cluster_uid": "11111111-1111-4111-8111-000000000001",
+            "caller_pod_uid": "bbbbbbbb-0000-4000-8000-000000000002",
+            "client_resource": {
+              "k8s.deployment.name": "orders-canary",
+              "k8s.namespace.name": "shop",
+              "k8s.pod.name": "orders-canary-7c4b9d-p2"
+            },
+            "correlation_mode": "CLIENT_SERVER",
+            "environment": "production",
+            "id": "evidence:otel:calls-scoped:v2:67e2ec5c27a75a98bd73419b6521da777df8532f7845cb1a3b1c07831c06fd6f",
+            "object_id": "operation:service:legacy-pricing:GET:/prices",
+            "spans": [
+              {
+                "timestamp": "2026-09-28T09:00:00Z",
+                "trace_id": "f96840d3a1bb566001f29732f6d627c9"
+              },
+              {
+                "timestamp": "2026-09-28T09:30:00Z",
+                "trace_id": "30b4e6853eb4a7273d77de51bdb6d4c5"
+              }
+            ],
+            "subject_id": "service:orders"
+          }
+        ],
+        "world": "K"
+      },
+      "kind": "property",
+      "spec_refs": [
+        "D15 R6",
+        "D10",
+        "D7"
+      ],
+      "steps": [
+        "query with compare [W1, W2] (502 candidates, S = 2, k = 500: page 1 is PARTIAL)"
+      ],
+      "title": "R6: the R5 construction on a PARTIAL inventory is UNKNOWN, not EVALUATED_NO_POSITIVE"
     },
     {
       "expected": {

@@ -525,6 +525,7 @@ def query_answer(
             "evaluated_sources": evaluated,
             "bounds": {**BOUNDS, "candidate_page_size": page_size(sources_considered)},
             "i2_truncated": False,
+            "continuation": False,
             "cap_reached": [],
             "next_cursor": None,
             "completeness": "COMPLETE",
@@ -1310,10 +1311,7 @@ def cases() -> list[dict]:
             "spec_refs": ["D15 R1", "D4", "D6"],
             "inputs": {
                 **k_inputs(["A"], [v11]),
-                "generated_captures": {
-                    "count": 2000,
-                    "template": "K2 / namespace gen-<n> / no Pods",
-                },
+                "generated_captures": generated_captures(2000),
             },
             "request": base,
             "expected": refusal("RESULT_LIMIT_EXCEEDED"),
@@ -1441,6 +1439,68 @@ def cases() -> list[dict]:
     return out
 
 
+def generated_captures(count: int) -> dict:
+    """`count` accepted K2 captures that pair with no candidate (other cluster, other namespace,
+    no Pods): they raise S without adding pairs (D4)."""
+    return {
+        "count": count,
+        "label": "G{n:04d}",
+        "cluster_uid": K["clusters"]["K2"],
+        "namespaces": ["gen-{n:04d}"],
+        "revision": "rev-g{n:04d}-1",
+        "captured_at": "2026-09-28T11:00:00Z",
+        "evidence_mode": "CAPTURED_RESOURCE",
+        "completeness": "COMPLETE",
+        "pods": [],
+        "n": "1..count",
+    }
+
+
+def generated_pods(count: int, *, workload: str | None, capture: str = "A") -> dict:
+    """`count` caller Pods captured **in `capture`** (the review fix for #388): each Pod and its
+    `WORKLOAD_OWNS_POD` owner are imported, so I2 resolves it. With `workload` all Pods share that
+    Workload; without, Pod n is owned by its own Deployment `orders-w{n:02d}`."""
+    owner = (
+        {
+            "kind": K["workloads"][workload]["kind"],
+            "name": K["workloads"][workload]["name"],
+            "uid": K["workloads"][workload]["uid"],
+        }
+        if workload
+        else {
+            "kind": "Deployment",
+            "name": "orders-w{n:02d}",
+            "uid": "aaaaaaaa-1000-4000-8000-{n:012d}",
+        }
+    )
+    return {
+        "count": count,
+        "capture": capture,
+        "uid": "bbbbbbbb-1000-4000-8000-{n:012d}",
+        "name": "orders-gen-{n:04d}",
+        "namespace": K["namespace"],
+        "owner": owner,
+        "n": "0..count-1",
+    }
+
+
+def generated_v2(count: int, operation: str) -> dict:
+    """One v2 per generated Pod n: caller service:orders, cluster K1, namespace shop, the Pod's
+    name and owner name as CLIENT Resource, one CLIENT_SERVER span at 09:00:00Z on the K day."""
+    return {
+        "count": count,
+        "pod": "generated Pod n",
+        "subject_id": "service:orders",
+        "object_id": operation,
+        "environment": K["environment"],
+        "bucket_utc_day": K["day"],
+        "caller_cluster_uid": K["clusters"]["K1"],
+        "spans": [{"timestamp": f"{K['day']}T09:00:00Z", "trace_id": "sha256('gen', n)[:32]"}],
+        "correlation_mode": "CLIENT_SERVER",
+        "n": "0..count-1",
+    }
+
+
 def property_cases(v11: dict, v22: dict) -> list[dict]:
     def prop(case_id, title, refs, inputs, steps, asserts):
         return {
@@ -1453,83 +1513,122 @@ def property_cases(v11: dict, v22: dict) -> list[dict]:
             "assert": asserts,
         }
 
+    w1_uid = K["workloads"]["W1"]["uid"]
+    w2_uid = K["workloads"]["W2"]["uid"]
+    one_locality = [
+        {"path": "len(data.localities)", "equals": 1},
+        {"path": "data.localities[0].workload.uid", "equals": w1_uid},
+        {"path": "len(data.localities[0].assessments)", "equals": 1},
+        {"path": "data.localities[0].assessments[0].object_operation_id", "equals": O1},
+    ]
     return [
         prop(
             "P01",
-            "R2: S = 5 and 500 candidates read k = 400",
+            "R2: S = 5 and 500 resolvable candidates read k = 400",
             ["D15 R2", "D4", "D5"],
             {
-                "world": "K",
-                "captures": "A plus four K2 captures that pair with nothing",
-                "generated_v2": {"count": 500, "template": "P1 pods p0000..p0499 in W1 -> O1"},
+                **k_inputs(["A"], []),
+                "generated_captures": generated_captures(4),
+                "generated_pods": generated_pods(500, workload="W1"),
+                "generated_v2": generated_v2(500, O1),
             },
             ["query without cursor"],
             [
                 {"path": "data.inventory.considered_capture_source_count", "equals": 5},
                 {"path": "data.inventory.bounds.candidate_page_size", "equals": 400},
                 {"path": "data.inventory.evaluated_v2_candidate_count", "equals": 400},
+                {"path": "data.inventory.admitted_pair_count", "equals": 400},
+                {"path": "len(data.inventory.evaluated_sources)", "equals": 1},
+                {"path": "data.candidates[*].disposition", "all_equal": "APPLICABLE"},
                 {"path": "data.inventory.i2_truncated", "equals": True},
+                {"path": "data.inventory.continuation", "equals": False},
                 {"path": "data.inventory.completeness", "equals": "PARTIAL"},
                 {"path": "outcome", "equals": "PARTIAL"},
-                {"path": "data.inventory.admitted_pair_count", "at_most": 2000},
                 {
                     "path": "cursor(data.inventory.next_cursor).after_id",
-                    "equals_expr": "the 400th v2 ID in ascending order",
+                    "equals_expr": "the 400th generated v2 ID in ascending order",
+                },
+                *one_locality,
+                {
+                    "path": "len(data.localities[0].assessments[0].observation.evidence_ids)",
+                    "equals": 400,
                 },
                 {"path": "data.localities[*].lineage_complete", "all_equal": False},
             ],
         ),
         prop(
             "P02",
-            "I2 page boundary: 501 candidates, two pages, one snapshot",
-            ["I3 §14 'Complete and incomplete inventory'", "I3 §7", "D5", "D7"],
+            "I2 page boundary: 501 resolvable candidates, two pages, one snapshot",
+            ["I3 §14 'Complete and incomplete inventory'", "I3 §7", "D5", "D7", "D16.11"],
             {
-                "world": "K",
-                "captures": "A only",
-                "generated_v2": {"count": 501, "template": "pods in W1 -> O1"},
+                **k_inputs(["A"], []),
+                "generated_pods": generated_pods(501, workload="W1"),
+                "generated_v2": generated_v2(501, O1),
             },
             ["page 1: query", "page 2: same query + page 1 next_cursor"],
             [
                 {"step": 1, "path": "data.inventory.evaluated_v2_candidate_count", "equals": 500},
                 {"step": 1, "path": "data.inventory.i2_truncated", "equals": True},
+                {"step": 1, "path": "data.candidates[*].disposition", "all_equal": "APPLICABLE"},
+                *({**item, "step": 1} for item in one_locality),
+                {
+                    "step": 1,
+                    "path": "len(data.localities[0].assessments[0].observation.evidence_ids)",
+                    "equals": 500,
+                },
                 {"step": 1, "path": "data.localities[*].lineage_complete", "all_equal": False},
                 {"step": 2, "path": "data.inventory.evaluated_v2_candidate_count", "equals": 1},
-                {"step": 2, "path": "data.inventory.completeness", "equals": "COMPLETE"},
+                {"step": 2, "path": "data.inventory.continuation", "equals": True},
+                {"step": 2, "path": "data.inventory.next_cursor", "equals": None},
+                {"step": 2, "path": "data.inventory.completeness", "equals": "PARTIAL"},
+                {"step": 2, "path": "outcome", "equals": "PARTIAL"},
+                {"step": 2, "path": "limitations[*].code", "contains": "INVENTORY_INCOMPLETE"},
+                *({**item, "step": 2} for item in one_locality),
+                {"step": 2, "path": "data.localities[*].lineage_complete", "all_equal": False},
                 {"step": 2, "path": "snapshot.snapshot_id", "equals_step": 1},
                 {
                     "path": "union of candidates[*].v2_evidence_id over both pages",
-                    "equals_expr": "all 501 v2 IDs, each exactly once",
+                    "equals_expr": "all 501 generated v2 IDs, each exactly once",
                 },
             ],
         ),
         prop(
             "P03",
             "I3 Workload cap splits the page although I2 truncated = false",
-            ["I3 §14 'I2 page or I3 presentation cap'", "D4", "D7"],
+            ["I3 §14 'I2 page or I3 presentation cap'", "D4", "D7", "D16.11"],
             {
-                "world": "K",
-                "captures": "A only",
-                "generated_v2": {
-                    "count": 60,
-                    "template": "60 Workloads w00..w59, one Pod each -> O1",
-                },
+                **k_inputs(["A"], []),
+                "generated_pods": generated_pods(60, workload=None),
+                "generated_v2": generated_v2(60, O1),
             },
-            ["page 1: query", "page 2: query + cursor"],
+            ["page 1: query", "page 2: query + page 1 next_cursor"],
             [
                 {"step": 1, "path": "data.inventory.i2_truncated", "equals": False},
                 {"step": 1, "path": "data.inventory.cap_reached", "equals": ["WORKLOADS"]},
+                {"step": 1, "path": "data.inventory.evaluated_v2_candidate_count", "equals": 50},
                 {"step": 1, "path": "len(data.localities)", "equals": 50},
                 {"step": 1, "path": "data.localities[*].lineage_complete", "all_equal": False},
                 {"step": 1, "path": "outcome", "equals": "PARTIAL"},
+                {"step": 2, "path": "data.inventory.continuation", "equals": True},
+                {"step": 2, "path": "data.inventory.evaluated_v2_candidate_count", "equals": 10},
                 {"step": 2, "path": "len(data.localities)", "equals": 10},
-                {"step": 2, "path": "data.inventory.completeness", "equals": "COMPLETE"},
+                {"step": 2, "path": "data.inventory.next_cursor", "equals": None},
+                {"step": 2, "path": "data.inventory.completeness", "equals": "PARTIAL"},
+                {
+                    "path": "union of localities[*].workload.uid over both pages",
+                    "equals_expr": "all 60 generated Workload UIDs, each exactly once",
+                },
             ],
         ),
         prop(
             "P04",
             "Cursor misuse: other query or changed snapshot",
             ["I3 §7", "D5", "D9"],
-            {"world": "K", "captures": "A only", "generated_v2": {"count": 501}},
+            {
+                **k_inputs(["A"], []),
+                "generated_pods": generated_pods(501, workload="W1"),
+                "generated_v2": generated_v2(501, O1),
+            },
             [
                 "page 1",
                 "page 2 with object_operation_id added and the page-1 cursor",
@@ -1537,6 +1636,7 @@ def property_cases(v11: dict, v22: dict) -> list[dict]:
                 "page 2 with the page-1 cursor",
             ],
             [
+                {"step": 1, "path": "len(data.localities)", "equals": 1},
                 {"step": 2, "path": "limitations[0].code", "equals": "CURSOR_QUERY_MISMATCH"},
                 {"step": 2, "path": "data", "equals": None},
                 {"step": 4, "path": "limitations[0].code", "equals": "SNAPSHOT_NOT_AVAILABLE"},
@@ -1547,17 +1647,15 @@ def property_cases(v11: dict, v22: dict) -> list[dict]:
             "P05",
             "R7: capture refs of a positive assessment resolve in evidence mode only",
             ["D15 R7", "D11", "I3 §12"],
-            {
-                "world": "K",
-                "captures": "A only (no Service-level DEPLOYED_AS declared)",
-                "v2": [v11["id"]],
-            },
+            {**k_inputs(["A"], [v11]), "note": "no Service-level DEPLOYED_AS is declared"},
             [
                 "query; take every ref of the bound set {{...K8S:A/P1}}",
                 "evidence mode with those refs",
                 "legacy get_evidence with the same refs",
             ],
             [
+                {"step": 1, "path": "len(data.localities)", "equals": 1},
+                {"step": 2, "path": "len(data.entries)", "at_least": 1},
                 {"step": 2, "path": "data.entries[*].status", "all_equal": "RESOLVED"},
                 {
                     "step": 2,
@@ -1580,7 +1678,7 @@ def property_cases(v11: dict, v22: dict) -> list[dict]:
             "P06",
             "v2 stays isolated from legacy readers",
             ["I3 §14 'Scoped drill-down'", "I3 §12", "I2 D1", "D11"],
-            {"world": "K", "captures": "A only", "v2": [v11["id"], v22["id"]]},
+            k_inputs(["A"], [v11, v22]),
             [
                 "legacy get_evidence / POST /api/evidence/resolve / GET /api/evidence with v2 IDs",
                 "NL question naming the v2 IDs",
@@ -1608,27 +1706,6 @@ def property_cases(v11: dict, v22: dict) -> list[dict]:
             ],
         ),
         prop(
-            "P09",
-            "R6: the R5 construction on a PARTIAL inventory is UNKNOWN, not EVALUATED_NO_POSITIVE",
-            ["D15 R6", "D10", "D7"],
-            {
-                "world": "K",
-                "inputs_of": "X14",
-                "generated_v2": {
-                    "count": 500,
-                    "template": "extra W2 Pods -> O2, sorting after X14's",
-                },
-            },
-            ["query with compare [W1, W2] (page 1 is PARTIAL)"],
-            [
-                {"path": "data.inventory.completeness", "equals": "PARTIAL"},
-                {"path": "data.comparison.scopes[0].evaluation", "equals": "UNKNOWN"},
-                {"path": "data.comparison.completeness", "equals": "PARTIAL"},
-                {"path": "limitations[*].code", "contains": "SELECTION_NOT_ESTABLISHED"},
-                {"path": "limitations[*].code", "contains": "COMPARISON_INCOMPLETE"},
-            ],
-        ),
-        prop(
             "P08",
             "C1 -> C2: a C1-snapshot request after C2 is imported",
             ["I3 §14 'Pod churn C1 -> C2'", "I3 §10", "E7"],
@@ -1640,8 +1717,30 @@ def property_cases(v11: dict, v22: dict) -> list[dict]:
                 "query without snapshot_id",
             ],
             [
+                {"step": 1, "path": "len(data.localities)", "equals": 2},
                 {"step": 3, "path": "limitations[0].code", "equals": "SNAPSHOT_NOT_AVAILABLE"},
                 {"step": 4, "path": "snapshot.snapshot_id", "not_equals_step": 1},
+            ],
+        ),
+        prop(
+            "P09",
+            "R6: the R5 construction on a PARTIAL inventory is UNKNOWN, not EVALUATED_NO_POSITIVE",
+            ["D15 R6", "D10", "D7"],
+            {
+                **k_inputs(["A", "X"], [v11, v22]),
+                "generated_pods": generated_pods(500, workload="W2"),
+                "generated_v2": generated_v2(500, O2),
+            },
+            ["query with compare [W1, W2] (502 candidates, S = 2, k = 500: page 1 is PARTIAL)"],
+            [
+                {"path": "data.inventory.i2_truncated", "equals": True},
+                {"path": "data.inventory.completeness", "equals": "PARTIAL"},
+                {"path": "data.localities[*].workload.uid", "contains": w2_uid},
+                {"path": "data.comparison.scopes[0].evaluation", "equals": "UNKNOWN"},
+                {"path": "data.comparison.scopes[1].evaluation", "equals": "POSITIVE"},
+                {"path": "data.comparison.completeness", "equals": "PARTIAL"},
+                {"path": "limitations[*].code", "contains": "SELECTION_NOT_ESTABLISHED"},
+                {"path": "limitations[*].code", "contains": "COMPARISON_INCOMPLETE"},
             ],
         ),
     ]

@@ -829,6 +829,8 @@ class Inventory(BaseModel):
     evaluated_sources: list[EvaluatedSource] = Field(json_schema_extra=_UNIQUE)
     bounds: InventoryBounds
     i2_truncated: bool
+    # D16.11: this page was requested with a cursor, so it never evaluated the whole inventory.
+    continuation: bool
     cap_reached: list[PresentationCap] = Field(max_length=2, json_schema_extra=_UNIQUE)
     next_cursor: str | None = Field(
         min_length=1, max_length=_MAX_CURSOR_LENGTH, pattern=_CURSOR_PATTERN
@@ -855,11 +857,14 @@ class Inventory(BaseModel):
             raise ValueError("candidate_page_size must be min(500, 2000 // S) (D4)")
         if self.evaluated_v2_candidate_count > self.bounds.candidate_page_size:
             raise ValueError("more candidates than the internal page size")
-        partial = self.i2_truncated or bool(self.cap_reached)
-        if partial != (self.completeness is Completeness.PARTIAL):
-            raise ValueError("completeness is PARTIAL exactly when I2 truncated or a cap was hit")
-        if partial != (self.next_cursor is not None):
-            raise ValueError("next_cursor is present exactly when the inventory is PARTIAL")
+        more = self.i2_truncated or bool(self.cap_reached)
+        if (more or self.continuation) != (self.completeness is Completeness.PARTIAL):
+            raise ValueError(
+                "completeness is PARTIAL exactly when I2 truncated, a cap was hit or the page "
+                "continues a cursor (D7, D16.11)"
+            )
+        if more != (self.next_cursor is not None):
+            raise ValueError("next_cursor is present exactly when more candidates remain")
         return self
 
 

@@ -16,7 +16,7 @@
 | Kind | Content | Used by |
 |---|---|---|
 | `answer` | `inputs` (world, fixture), the exact `request`, and the complete expected `LocalityAnswer` | I3.2 service tests (`mode: query`), I3.3 evidence-mode and surface tests |
-| `property` | `inputs`, ordered `steps` and machine-readable `assert` items (`path` with `equals`, `at_most`, `all_equal`, `contains`, `subset_of`, `equals_step`, `not_equals_step` or a stated `equals_expr`) | Multi-page, generated-cardinality and cross-reader rows that one literal answer cannot state |
+| `property` | `inputs`, ordered `steps` and machine-readable `assert` items (`path` with `equals`, `at_least`, `at_most`, `all_equal`, `contains`, `subset_of`, `equals_step`, `not_equals_step` or a stated `equals_expr`; `len(...)` paths are non-empty cardinality checks, so no property case can pass vacuously) | Multi-page, generated-cardinality and cross-reader rows that one literal answer cannot state |
 | `request` | A request that must be a validation error (REST 422, MCP validation error; D9) | I3.3 adapters; the model tests |
 
 ## 2. Matching procedure (normative for every harness that executes the oracle)
@@ -44,7 +44,10 @@
   - **v2 records:** given by key fields, CLIENT Resource and spans, from which v2 `first_seen`/`last_seen`/count/samples follow (I1 v2 contract §3).
   - **Declarations:** `service:orders` CALLS O1 is declared, and O1 is declared by `service:pricing`. O2 and O3 are owned through observed `PROVIDES` (SERVER spans).
 - **Disclosed graph adjustments (X05, X06):** the missing-owner Operation O4 has a `PROVIDES` edge whose evidence does not resolve, and the ambiguous Operation O5 has two evidenced providers. Real ingestion may not produce these states, so the harness writes them directly and says so. They are D8 negative fixtures, not observed systems.
-- **Generated inputs (X25, P01–P04, P09):** counts and templates are stated in `inputs`. Expected values are stated as properties (counts, page size, cursor position), not as thousands of literal entries.
+- **Generated inputs (X25, P01–P04, P09):** explicit, deterministic templates in `inputs`, where `n` runs over the stated range. Expected values are stated as properties (counts, page size, cursor position, cardinalities), not as thousands of literal entries.
+  - `generated_captures` adds accepted K2 captures `G{n}` with their own namespace and no Pods. They raise `S` without forming a pair.
+  - `generated_pods` imports each generated caller Pod **and** its `WORKLOAD_OWNS_POD` owner into the named capture (A), with a stated UID, name and owner (one shared Workload, or Deployment `orders-w{n}` per Pod for P03), so I2 resolves every generated candidate (PR #388 review).
+  - `generated_v2` gives one v2 per generated Pod.
 
 ## 4. I3 §14 rows
 
@@ -57,7 +60,7 @@
 | S05 | Wrong day / environment | X08, X09 | COVERED | Phase-3 `INAPPLICABLE` candidates stay listed (L10b, L17d) |
 | S06 | Two captures / source selection | X10, X11, X12, X13, X14 | COVERED | Missing-Pod source as a pair limitation; unrelated capture not a pair; explicit selector; stale selector = implicit no-cover (D13.3); conflicting source not preferred |
 | S07 | Pod churn C1 → C2 | X03, P08 | COVERED | Retained P1 v2 `UNRESOLVED` [`LOCALITY_CAPTURE_MISSING_POD`]; a C1 snapshot is refused after C2 |
-| S08 | Complete and incomplete inventory | X12, X13, X24, P02, P04 | COVERED | Counts equal listed items; two pages on one snapshot; a non-current `snapshot_id` and cursor misuse are refused |
+| S08 | Complete and incomplete inventory | X12, X13, X24, P02, P04 | COVERED | Counts equal listed items; two pages on one snapshot, and the final continuation page stays `PARTIAL` (D16.11); a non-current `snapshot_id` and cursor misuse are refused |
 | S09 | I2 page or I3 presentation cap splits a Workload group | P01, P02, P03, X25 | PROPERTY | `k = 400` at `S = 5`; I2 truncation; Workload cap with `i2_truncated = false`; `S > 2,000` fails closed before reading (D4, D6) |
 | S10 | Selected comparison | X02, X14, X15, X16, X19, P09, Q03, Q04, Q08 | COVERED | Positive-only differences; `EVALUATED_NO_POSITIVE` (R5); invented `UNKNOWN` (R4); phase-3-only `UNKNOWN` (R6b); `in_both`; `PARTIAL` (R6); malformed compare requests |
 | S11 | Unsupported scope/relations | X20, X21, X22, X23 | COVERED | `UNSUPPORTED_REQUEST` with the I2 `LOCALITY_UNSUPPORTED_*` reason; no local absence |
