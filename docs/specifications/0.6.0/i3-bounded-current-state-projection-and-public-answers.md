@@ -237,7 +237,6 @@ Test v2-positive, no-v2, stale snapshot, mismatched caller/Operation, unsupporte
 | REST | POST /api/services/{service_id}/dependencies/by-locality | Typed bounded request body; response is exact versioned service answer |
 | REST scoped lookup | POST /api/services/{service_id}/dependencies/by-locality/evidence | Exact ref+snapshot request, not the existing unscoped evidence endpoint |
 | MCP | get_service_dependencies_by_locality | **Proposed fourth read-only tool**, query/resolver modes; negotiated transport, one typed request argument |
-
 | Existing MCP | get_architecture_drift, get_evidence, get_service_dependencies | Unmodified 0.5 meanings and existing tool contracts |
 
 **Proposed MCP description:** Discover evidenced caller-Workload localities and return positively established HTTP dependencies per locality, with optional same-snapshot comparison. The results are **not** an exhaustive partition of all Service dependencies: missing relationships do not establish local absence. Unknown, unresolved, excluded and unscanned items remain explicit. In the proposed second request mode, the same tool resolves exact scoped evidence refs under the supplied snapshot without widening legacy `get_evidence`. Tool name, modes and route are still I3.1 freeze decisions.
