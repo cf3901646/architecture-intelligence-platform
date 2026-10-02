@@ -59,26 +59,27 @@ jobs:
         run: uv run pytest tests/unit
 
   integration-core:
-    # Two parallel shards, each with its own Neo4j container. `heavy` names the slowest modules;
-    # `rest` runs everything else, so a new module needs no entry here.
+    # Three parallel shards, each with its own Neo4j container. `heavy` and `oracle` name the slowest
+    # modules; `rest` runs everything else, so a new module needs no entry here.
     name: integration-core (${{ matrix.shard }})
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
-        shard: [heavy, rest]
+        shard: [heavy, oracle, rest]
     env:
       # Order matters: pytest runs these in the listed order, and test_locality_query.py's replays
-      # are only reused by test_locality_rehearsal_replay.py when they run first. The I3 oracle
-      # module follows them; it checks the live graph's snapshot before reusing a replay.
+      # are only reused by test_locality_rehearsal_replay.py when they run first.
       HEAVY_MODULES: >-
         tests/integration/test_locality_query.py
         tests/integration/test_locality_rehearsal_replay.py
-        tests/integration/test_locality_oracle.py
         tests/integration/test_evaluation_architecture_answers.py
         tests/integration/test_i4_pubsub_qualification.py
         tests/integration/test_adapter.py
         tests/integration/test_architecture_intelligence_service.py
+      # The I3 oracle alone; it checks the live graph's snapshot before reusing a replay.
+      ORACLE_MODULES: >-
+        tests/integration/test_locality_oracle.py
     steps:
       - name: Checkout
         uses: actions/checkout@v7.0.1
@@ -96,11 +97,11 @@ jobs:
         env:
           SHARD: ${{ matrix.shard }}
         run: |
-          if [ "$SHARD" = heavy ]; then
-            selection=$HEAVY_MODULES
-          else
-            selection="tests/integration $(printf -- '--ignore=%s ' $HEAVY_MODULES)"
-          fi
+          case "$SHARD" in
+            heavy) selection=$HEAVY_MODULES ;;
+            oracle) selection=$ORACLE_MODULES ;;
+            *) selection="tests/integration $(printf -- '--ignore=%s ' $HEAVY_MODULES $ORACLE_MODULES)" ;;
+          esac
           # Unquoted on purpose: word-splits into the module paths / --ignore options.
           # shellcheck disable=SC2086
           uv run pytest $selection -m "not demo_e2e" --durations=25
