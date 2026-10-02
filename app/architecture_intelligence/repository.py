@@ -307,7 +307,18 @@ def _project_deployment_captured_pods(session: neo4j.Session) -> list[dict]:
         }
         for record in session.run(_DEPLOYMENT_CAPTURED_PODS_QUERY)
     ]
-    return sorted(rows, key=lambda row: row["id"])
+    # One Pod captured by several sources has one row per source, all with the same `id`, so the
+    # whole row is the key: sorting by `id` alone left their order, and so the snapshot id, to
+    # Neo4j's return order (v0.6.0 I3.2c, found by the I3 oracle's permutation case P07).
+    return sorted(
+        rows,
+        key=lambda row: (
+            row["id"],
+            row["captured_resource_uid"],
+            row["captured_at"] or "",
+            tuple(row["evidence_refs"]),
+        ),
+    )
 
 
 def _project_deployment_workload_owns_pod(session: neo4j.Session) -> list[dict]:

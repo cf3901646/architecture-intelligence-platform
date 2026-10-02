@@ -88,3 +88,23 @@
 | D16.10 (`SELECTION_NOT_ESTABLISHED` from `compare`) | X15, X16 |
 | D3 `caller_localities` filter | X17 |
 | Request validation (D3, D9) | Q01, Q02, Q06, Q07 |
+
+## 6. Execution (I3.2c)
+
+This section was added in I3.2c. §1–§5 and the oracle are unchanged.
+
+[`tests/integration/test_locality_oracle.py`](../../../tests/integration/test_locality_oracle.py) runs every `mode: "query"` case against `ArchitectureIntelligenceService.get_service_dependencies_by_locality` on real Neo4j.
+- **Answer cases:** X01–X25.
+- **Property cases:** P01–P04 and P07–P09.
+- **Matching:** each answer must also pass the published 0.6 schema and the `LocalityAnswer` model, and is matched with the §2 procedure ([`locality_oracle/matcher.py`](../../../tests/integration/locality_oracle/matcher.py)). `tests/unit/test_locality_oracle_matcher.py` gives every matcher rule its own positive and negative test.
+- **Partition guard:** `test_every_query_case_is_executed` pins the split. X26–X28, P05 and P06 (evidence mode and legacy-reader isolation) are I3.3; Q01–Q08 stay with the unit machine check above.
+
+The world builder, [`locality_oracle/world.py`](../../../tests/integration/locality_oracle/world.py), uses these write paths:
+- the real importer for declarations and captures;
+- the production per-POST persistence for v2 records and observed `PROVIDES`.
+
+Its disclosed deviations, in addition to the §3 X05/X06 adjustments:
+- **X25:** the first 3 of the 2,000 generated captures go through the real importer. The rest are cloned as `SourceState` capture properties, and the harness asserts that the clone writer reproduces what the importer wrote for the real ones (owner decision: about 13 minutes of imports per run).
+- **P08:** C2 is imported over C1 from a temporary copy in which only `completeness.expectedPriorInventoryRevision` is set to the committed C1 revision. The recorded envelopes are both first imports, so the importer would otherwise refuse C2 as a stale predecessor. The committed fixture is unchanged (owner decision).
+
+**Finding.** The first run of P07 (X10) showed that the canonical snapshot state ordered the rows of one Pod captured by two sources only by id, so the snapshot id depended on Neo4j's return order. I3.2c fixes this in `repository._project_deployment_captured_pods` (whole-row sort). It changes no expectation and no frozen vector.
