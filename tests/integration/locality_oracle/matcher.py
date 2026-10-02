@@ -149,15 +149,16 @@ def _match_list(expected: list, actual: list, bindings: Bindings) -> Iterator[Bi
         return
     if len(expected) != len(actual):
         return
-    positional = list(_match_items(expected, actual, bindings))
-    if positional:
-        yield from positional
-        return
+    yield from _match_items(expected, actual, bindings)
     if not has_symbol(expected) or len(expected) > 7:
         return
-    # Rule 3: a list whose order depends on symbols is compared as a set after binding.
-    for order in permutations(actual):
-        yield from _match_items(expected, list(order), bindings)
+    # Rule 3: a list whose order depends on symbols is compared as a set after binding. Every
+    # alternative is yielded, not only the first local one, so a binding that a later field
+    # contradicts can still be replaced by another (rule 5: *some* injective binding).
+    identity = tuple(range(len(actual)))
+    for order in permutations(identity):
+        if order != identity:
+            yield from _match_items(expected, [actual[index] for index in order], bindings)
 
 
 def _match_spread(

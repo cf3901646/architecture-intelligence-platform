@@ -75,6 +75,15 @@ def test_a_list_with_symbols_may_match_as_a_set():
     assert match(expected, [*actual, {"s": "c", "n": 3}]) is None, "lengths must agree"
 
 
+def test_a_list_binding_that_a_later_field_contradicts_is_replaced():
+    """PR #396 review: the first positional binding (X=one, Y=two) conflicts with `z`, but the
+    alternative X=two, Y=one satisfies the whole answer, so it must be found."""
+    expected = {"a": ["{{X}}", "{{Y}}"], "z": "{{X}}"}
+    found = match(expected, {"a": ["one", "two"], "z": "two"})
+    assert found is not None and found.scalars == {"X": "two", "Y": "one"}
+    assert match(expected, {"a": ["one", "two"], "z": "three"}) is None
+
+
 def test_pre_bound_symbols_are_substituted_before_matching():
     assert substitute({"s": "{{SOURCE:A}}", "t": "{{X}}"}, {"SOURCE:A": "real"}) == {
         "s": "real",
