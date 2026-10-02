@@ -575,3 +575,63 @@ def _adjust(driver, operation: str, description: str) -> None:
                 bump_revision(tx),
             )
         )
+
+
+# --- Pre-bound refs (matrix §2 rule 2: `REF:<what>` names the fixture's own evidence id) --------
+
+# The oracle's Operation tags (author_expected_answers.py `OP_TAG`, matrix §3 world K).
+OPERATIONS = {
+    "O1": "operation:service:pricing:GET:/prices",
+    "O2": "operation:service:legacy-pricing:GET:/prices",
+    "O3": "operation:service:pricing:GET:/prices/{id}",
+    "O4": "operation:service:catalog:GET:/items",
+    "O5": "operation:service:catalog:GET:/stock",
+}
+
+
+def _existing_evidence(driver, evidence_id: str) -> str:
+    with driver.session(database=DATABASE) as session:
+        found = session.run("MATCH (e:Evidence {id: $id}) RETURN e.id AS id", id=evidence_id)
+        assert found.single() is not None, f"the fixture has no Evidence {evidence_id}"
+    return evidence_id
+
+
+def _pod_capture_ref(driver, inputs: dict, prebound: dict[str, str], what: str) -> str:
+    """`K8S_POD:<capture>/<pod>`: the Pod contribution evidence ref of that Pod in that capture.
+    The pod label is matched by the K world's name suffix (`billing-6b8f5d-p9` is P9)."""
+    label, pod_label = what.split("/")
+    [capture] = [c for c in inputs["captures"] if c["label"] == label]
+    [pod] = [p for p in capture["pods"] if p["name"].endswith(f"-{pod_label.lower()}")]
+    with driver.session(database=DATABASE) as session:
+        record = session.run(
+            "MATCH (c:InfrastructureContribution {source_instance_id: $source, "
+            "captured_resource_uid: $uid}) RETURN c.evidence_refs AS refs",
+            source=prebound[f"SOURCE:{label}"],
+            uid=pod["uid"],
+        ).single()
+    assert record is not None and len(record["refs"]) == 1, (what, record)
+    return _existing_evidence(driver, record["refs"][0])
+
+
+def bind_refs(driver, inputs: dict, prebound: dict[str, str], names: list[str]) -> dict[str, str]:
+    """Resolves each `REF:<kind>:<what>` the request names to the built fixture's own id."""
+    bound = {}
+    for name in names:
+        _, kind, what = name.split(":", 2)
+        if kind == "DECLARED":
+            assert what == "orders->pricing", what
+            bound[name] = _existing_evidence(driver, DECLARED_CALLS_EVIDENCE)
+        elif kind == "V1":
+            subject, tag = what.split("->")
+            day = datetime.fromisoformat("2026-09-28").replace(tzinfo=UTC)
+            bound[name] = _existing_evidence(
+                driver,
+                ids.observed_evidence_id(
+                    "production", day, f"service:{subject}", "CALLS", OPERATIONS[tag]
+                ),
+            )
+        elif kind == "K8S_POD":
+            bound[name] = _pod_capture_ref(driver, inputs, prebound, what)
+        else:
+            raise AssertionError(f"unknown REF kind: {name}")
+    return bound

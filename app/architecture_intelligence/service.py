@@ -59,13 +59,16 @@ from app.architecture_intelligence.evidence_projection import (
 from app.architecture_intelligence.local_assessment import LocalAssessmentResult, assess
 from app.architecture_intelligence.locality_contracts import (
     LocalityAnswer,
+    LocalityEvidenceRequest,
     LocalityLimitationCode,
     LocalityQueryRequest,
     decode_cursor,
 )
 from app.architecture_intelligence.locality_projection import (
     internal_request,
+    is_v2_ref,
     project_locality_answer,
+    project_scoped_evidence,
     query_digest,
     refusal_answer,
     result_limit_message,
@@ -79,6 +82,7 @@ from app.architecture_intelligence.repository import (
     read_public_evidence_row,
     read_service_dependency_rows,
     read_stable_snapshot,
+    read_stable_snapshot_from_session,
     snapshot_fingerprint,
 )
 from app.architecture_intelligence.request import (
@@ -96,6 +100,7 @@ from app.architecture_intelligence.scoped_evidence_repository import (
     DEFAULT_PAGE_SIZE,
     read_locality_inventory,
     read_scoped_applicability,
+    read_scoped_evidence,
 )
 from app.graph.repository import open_session
 from app.graph.revision_fence import read_revision
@@ -798,6 +803,7 @@ class ArchitectureIntelligenceService:
                 session,
                 request,
                 coverage_qualification_enabled=self._coverage_qualification_enabled,
+                service_workload_mapping_document=self._service_workload_mapping_document,
                 after_id=after_id,
                 page_size=page_size,
             )
@@ -827,6 +833,7 @@ class ArchitectureIntelligenceService:
                     session,
                     locality,
                     coverage_qualification_enabled=self._coverage_qualification_enabled,
+                    service_workload_mapping_document=self._service_workload_mapping_document,
                     after_id=cursor.after_id if cursor is not None else None,
                     read_candidates=early is None,
                 )
@@ -857,4 +864,48 @@ class ArchitectureIntelligenceService:
             read.owners,
             considered_sources=read.page.considered_source_count,
             producer=self._producer,
+        )
+
+    def resolve_scoped_locality_evidence(self, request: LocalityEvidenceRequest) -> LocalityAnswer:
+        """v0.6.0 I3.3a - the `mode: "evidence"` same-snapshot scoped resolver (I3 spec §12;
+        decision record D11, D16.1, D16.7). It resolves the refs a locality answer emits: scoped v2
+        records of this caller (and Operation), and the Kubernetes Pod/owner capture evidence those
+        records' Pods carry. Everything is read in one stable-snapshot attempt and answered only for
+        the supplied `snapshot_id`, never from latest data. Any other ref is `NOT_FOUND`, without
+        saying why. The legacy `get_evidence` path is not touched. Read-only."""
+        v2_refs = [ref for ref in request.refs if is_v2_ref(ref)]
+        capture_refs = [ref for ref in request.refs if not is_v2_ref(ref)]
+        try:
+            with open_session(self._driver, database=self._database, read_only=True) as session:
+                snapshot = read_stable_snapshot_from_session(
+                    session,
+                    coverage_qualification_enabled=self._coverage_qualification_enabled,
+                    service_workload_mapping_document=self._service_workload_mapping_document,
+                    read_extra=lambda runner: read_scoped_evidence(
+                        runner,
+                        subject_id=request.subject_service_id,
+                        object_id=request.object_operation_id,
+                        v2_refs=v2_refs,
+                        capture_refs=capture_refs,
+                    ),
+                )
+        except SnapshotUnstable:
+            return refusal_answer(
+                self._producer,
+                None,
+                LocalityLimitationCode.SNAPSHOT_NOT_AVAILABLE,
+                mode="evidence",
+            )
+        snapshot_ref = SnapshotRef(
+            snapshot_id=snapshot.snapshot_id, model_revision=snapshot.model_revision
+        )
+        if request.snapshot_id != snapshot.snapshot_id:
+            return refusal_answer(
+                self._producer,
+                snapshot_ref,
+                LocalityLimitationCode.SNAPSHOT_NOT_AVAILABLE,
+                mode="evidence",
+            )
+        return project_scoped_evidence(
+            request, snapshot.extra, snapshot=snapshot_ref, producer=self._producer
         )

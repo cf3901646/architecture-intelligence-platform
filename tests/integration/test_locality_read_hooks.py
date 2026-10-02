@@ -85,6 +85,7 @@ def test_a_smaller_page_size_walks_every_candidate_once(graph, session, tmp_path
             session,
             _request(),
             coverage_qualification_enabled=False,
+            service_workload_mapping_document=None,
             after_id=after_id,
             page_size=2,
         )
@@ -106,9 +107,18 @@ def test_the_default_page_is_unchanged(graph, session, tmp_path):
     for n in range(3):
         _store(session, _variant(n))
 
-    default = read_scoped_applicability(session, _request(), coverage_qualification_enabled=False)
+    default = read_scoped_applicability(
+        session,
+        _request(),
+        coverage_qualification_enabled=False,
+        service_workload_mapping_document=None,
+    )
     explicit = read_scoped_applicability(
-        session, _request(), coverage_qualification_enabled=False, page_size=500
+        session,
+        _request(),
+        coverage_qualification_enabled=False,
+        service_workload_mapping_document=None,
+        page_size=500,
     )
 
     assert default == explicit
@@ -197,6 +207,7 @@ def test_the_hook_runs_inside_the_stable_snapshot_attempt(graph, session, tmp_pa
     snapshot = read_stable_snapshot_from_session(
         session,
         coverage_qualification_enabled=False,
+        service_workload_mapping_document=None,
         read_extra=lambda runner: _page(runner, page_size_for=page_size_for),
     )
 

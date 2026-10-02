@@ -97,7 +97,8 @@ This section was added in I3.2c. §1–§5 and the oracle are unchanged.
 - **Answer cases:** X01–X25.
 - **Property cases:** P01–P04 and P07–P09.
 - **Matching:** each answer must also pass the published 0.6 schema and the `LocalityAnswer` model, and is matched with the §2 procedure ([`locality_oracle/matcher.py`](../../../tests/integration/locality_oracle/matcher.py)). `tests/unit/test_locality_oracle_matcher.py` gives every matcher rule its own positive and negative test.
-- **Partition guard:** `test_every_query_case_is_executed` pins the split. X26–X28, P05 and P06 (evidence mode and legacy-reader isolation) are I3.3; Q01–Q08 stay with the unit machine check above.
+- **Evidence mode (I3.3a):** X26–X28 and the property cases P05 and P06 run against `ArchitectureIntelligenceService.resolve_scoped_locality_evidence`. `SNAPSHOT_ID` is bound from the built world's current snapshot, and `REF:*` to the fixture's own evidence ids (§2 rule 2). P06's NL step uses a stub provider that names the v2 ids, as I2's isolation tests do.
+- **Partition guard:** `test_every_case_is_executed` pins the split: every answer and property case runs here, and Q01–Q08 stay with the unit machine check above. Cross-surface parity (S13: REST and negotiated MCP against the same answers) is I3.3c.
 
 The world builder, [`locality_oracle/world.py`](../../../tests/integration/locality_oracle/world.py), uses these write paths:
 - the real importer for declarations and captures;

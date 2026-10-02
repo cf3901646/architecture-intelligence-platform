@@ -489,8 +489,16 @@ class _FakeReads:
         self._refuse, self._unstable = refuse, unstable
 
     def __call__(
-        self, session, request, *, coverage_qualification_enabled, after_id, read_candidates
+        self,
+        session,
+        request,
+        *,
+        coverage_qualification_enabled,
+        service_workload_mapping_document,
+        after_id,
+        read_candidates,
     ):
+        assert service_workload_mapping_document is None  # the service under test has none
         self.calls.append({"after_id": after_id, "read_candidates": read_candidates})
         if self._unstable:
             raise SnapshotUnstable("never settles")

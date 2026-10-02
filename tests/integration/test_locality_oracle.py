@@ -1,7 +1,8 @@
-"""v0.6.0 I3.2c: the independent I3 oracle executed against the real service on real Neo4j
-(I3 spec §14, §15 I3.2 row; `i3-expected-answer-matrix.md`; decision record D15).
+"""v0.6.0 I3.2c/I3.3a: the independent I3 oracle executed against the real service on real Neo4j
+(I3 spec §14, §15 I3.2/I3.3 rows; `i3-expected-answer-matrix.md`; decision record D15).
 
-Every `mode: "query"` case of `i3-vectors/expected-answers.json` runs here.
+Every answer and property case of `i3-vectors/expected-answers.json` runs here, in both modes
+(`query`, I3.2c; `evidence` and the legacy-reader isolation case P06, I3.3a).
 - **Answer cases** must match their complete expected `LocalityAnswer` under the matrix §2 procedure
   (`locality_oracle.matcher`). They must also pass the published 0.6 answer schema and the
   `LocalityAnswer` model.
@@ -12,17 +13,16 @@ The oracle is read-only. A disagreement is a defect in the implementation, or go
 specification; the expectation is never edited to match (I3 §17 stop condition).
 
 Not executed here:
-- the evidence-mode cases (X26-X28, P05) and the legacy-reader isolation case (P06) are I3.3,
-  which adds that mode and the adapters;
 - the request-validation cases (Q01-Q08) are checked by
   `tests/unit/test_v060_i3_expected_answers.py`.
 
-`test_every_query_case_is_executed` pins the partition, so no case can be skipped silently.
+`test_every_case_is_executed` pins the partition, so no case can be skipped silently.
 """
 
 from __future__ import annotations
 
 import json
+import re
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
@@ -30,7 +30,14 @@ from typing import Any
 import jsonschema
 import pytest
 
-from app.architecture_intelligence.locality_contracts import LocalityAnswer, LocalityQueryRequest
+from app.ai.cypher_validator import CypherValidationError
+from app.ai.question_service import ArchitectureQuestionService
+from app.architecture_intelligence.locality_contracts import (
+    LocalityAnswer,
+    LocalityQueryRequest,
+    ServiceDependenciesByLocalityRequest,
+)
+from app.architecture_intelligence.locality_projection import internal_request
 from app.architecture_intelligence.request import (
     ArchitectureDriftRequest,
     EvidenceRequest,
@@ -40,6 +47,7 @@ from app.architecture_intelligence.request import (
 from app.architecture_intelligence.schema_export import LOCALITY_ANSWER_SCHEMA_PATH
 from app.architecture_intelligence.service import ArchitectureIntelligenceService
 from app.graph.revision_fence import read_revision
+from app.sources.service_workload_mapping import ServiceWorkloadMappingDocument
 from tests.integration.locality_oracle import world
 from tests.integration.locality_oracle.matcher import (
     check_property,
@@ -48,6 +56,7 @@ from tests.integration.locality_oracle.matcher import (
     resolve,
     substitute,
 )
+from tests.integration.test_api_architecture_intelligence_equivalence import _client as _rest_client
 from tests.integration.test_locality_rehearsal_replay import FIXTURE, PRODUCER
 
 DATABASE = world.DATABASE
@@ -72,8 +81,13 @@ K_ANSWER_CASES = [
     case_id for case_id in QUERY_ANSWER_CASES if case_id not in REHEARSAL_ANSWER_CASES
 ]
 QUERY_PROPERTY_CASES = ["P01", "P02", "P03", "P04", "P07", "P08", "P09"]
-# I3.3 adds the evidence mode and the legacy-reader isolation checks (I3 spec §15).
-I3_3_CASES = ["P05", "P06", "X26", "X27", "X28"]
+# I3.3a: the evidence mode and the legacy-reader isolation checks.
+EVIDENCE_ANSWER_CASES = sorted(
+    case_id
+    for case_id, case in CASES.items()
+    if case["kind"] == "answer" and case["request"]["mode"] == "evidence"
+)
+EVIDENCE_PROPERTY_CASES = ["P05", "P06"]
 REQUEST_CASES = sorted(case_id for case_id, case in CASES.items() if case["kind"] == "request")
 
 K_DAY = "2026-09-28"
@@ -96,10 +110,15 @@ def _service(driver) -> ArchitectureIntelligenceService:
     return ArchitectureIntelligenceService(driver, database=DATABASE, producer=PRODUCER)
 
 
-def _ask(driver, request: dict) -> dict[str, Any]:
-    """One query through the semantic service; the answer must pass both validators."""
-    answer = _service(driver).get_service_dependencies_by_locality(
-        LocalityQueryRequest.model_validate(request)
+def _ask(driver, request: dict, *, service: ArchitectureIntelligenceService | None = None) -> dict:
+    """One request through the semantic service, dispatched on `mode` as the adapters will (D1).
+    The answer must pass both validators."""
+    service = service or _service(driver)
+    parsed = ServiceDependenciesByLocalityRequest.model_validate(request).root
+    answer = (
+        service.get_service_dependencies_by_locality(parsed)
+        if isinstance(parsed, LocalityQueryRequest)
+        else service.resolve_scoped_locality_evidence(parsed)
     )
     payload = json.loads(answer.model_dump_json())
     LocalityAnswer.model_validate(payload)
@@ -118,15 +137,21 @@ def _identity(uid: str) -> dict:
 # --- The partition -------------------------------------------------------------------------------
 
 
-def test_every_query_case_is_executed():
-    executed = set(QUERY_ANSWER_CASES) | set(QUERY_PROPERTY_CASES)
-    assert executed.isdisjoint(I3_3_CASES)
-    assert executed | set(I3_3_CASES) | set(REQUEST_CASES) == set(CASES)
+def test_every_case_is_executed():
+    executed = [
+        *QUERY_ANSWER_CASES,
+        *QUERY_PROPERTY_CASES,
+        *EVIDENCE_ANSWER_CASES,
+        *EVIDENCE_PROPERTY_CASES,
+    ]
+    assert len(executed) == len(set(executed))
+    assert set(executed) | set(REQUEST_CASES) == set(CASES)
     assert len(QUERY_ANSWER_CASES) == 25 and QUERY_ANSWER_CASES[0] == "X01"
+    assert EVIDENCE_ANSWER_CASES == ["X26", "X27", "X28"]
     rehearsal = {c for c in QUERY_ANSWER_CASES if CASES[c]["inputs"]["world"] == "rehearsal"}
     assert rehearsal == set(REHEARSAL_ANSWER_CASES)
     property_cases = {case_id for case_id, case in CASES.items() if case["kind"] == "property"}
-    assert property_cases == set(QUERY_PROPERTY_CASES) | {"P05", "P06"}
+    assert property_cases == set(QUERY_PROPERTY_CASES) | set(EVIDENCE_PROPERTY_CASES)
 
 
 # --- Answer cases --------------------------------------------------------------------------------
@@ -296,8 +321,10 @@ def _graph_state(driver) -> tuple[int, int, int]:
         return read_revision(session), nodes, relations
 
 
-def _v0_5_answers(driver, snapshot_id: str) -> list[dict]:
-    service = _service(driver)
+def _v0_5_answers(
+    driver, snapshot_id: str, *, service: ArchitectureIntelligenceService | None = None
+) -> list[dict]:
+    service = service or _service(driver)
     context = ObservationContextInput(
         environment="production",
         window_start=datetime(2026, 9, 28, tzinfo=UTC),
@@ -350,3 +377,209 @@ def test_one_snapshot_is_shared_with_the_v0_5_answers_and_no_v2_adds_no_state(dr
         _ask(driver, substitute(CASES["X07"]["request"], prebound))["snapshot"]
         == (answer["snapshot"])
     )
+
+
+def test_with_a_mapping_artifact_every_read_still_shares_one_snapshot(driver, tmp_path):
+    """I3.3a: a configured Path B mapping artifact enters the canonical snapshot state. The I2
+    assessment and the locality answer must pass it as every v0.5 read does, or their snapshot_id
+    would differ from the v0.5 answers' (one canonical snapshot, I2 §11)."""
+    case = CASES["X04"]
+    prebound = world.build(driver, tmp_path, case["inputs"])
+    mapping = ServiceWorkloadMappingDocument(
+        artifact_id="i3-oracle-mapping",
+        artifact_revision="rev-1",
+        locator="i3-oracle/service-workload-mapping.yaml",
+        content_digest="a" * 64,
+    )
+    service = ArchitectureIntelligenceService(
+        driver, database=DATABASE, producer=PRODUCER, service_workload_mapping_document=mapping
+    )
+    request = LocalityQueryRequest.model_validate(substitute(case["request"], prebound))
+
+    locality = service.get_service_dependencies_by_locality(request).snapshot
+    assessment = service.assess_local_calls(internal_request(request))
+    [dependencies, *_] = _v0_5_answers(driver, "aip:snapshot:v1:" + "0" * 64, service=service)
+
+    assert locality is not None
+    assert locality.model_dump() == dependencies["snapshot"]
+    assert (assessment.snapshot_id, assessment.model_revision) == (
+        locality.snapshot_id,
+        locality.model_revision,
+    )
+    # Without the artifact the snapshot differs, so the test is not vacuous.
+    assert (
+        _ask(driver, substitute(case["request"], prebound))["snapshot"] != dependencies["snapshot"]
+    )
+
+
+# --- Evidence mode (I3.3a; D11, D16.1, D16.7) ----------------------------------------------------
+
+
+def _current_snapshot(driver) -> str:
+    return _ask(driver, K_REQUEST)["snapshot"]["snapshot_id"]
+
+
+def _ref_symbols(value: Any) -> list[str]:
+    text = json.dumps(value)
+    return sorted(set(re.findall(r"\{\{(REF:[^{}]+)\}\}", text)))
+
+
+@pytest.mark.parametrize("case_id", EVIDENCE_ANSWER_CASES)
+def test_the_evidence_answer_matches_the_oracle(driver, tmp_path, case_id):
+    """X26-X28. `SNAPSHOT_ID` is bound to the current snapshot of the built world (the request
+    names it), and `REF:*` to the fixture's own evidence ids (matrix §2 rule 2)."""
+    case = CASES[case_id]
+    prebound = world.build(driver, tmp_path, case["inputs"])
+    prebound["SNAPSHOT_ID"] = _current_snapshot(driver)
+    prebound |= world.bind_refs(driver, case["inputs"], prebound, _ref_symbols(case["request"]))
+
+    actual = _ask(driver, substitute(case["request"], prebound))
+
+    expected = case["expected"]
+    assert match(expected, actual, prebound) is not None, (
+        explain_mismatch(substitute(expected, prebound), actual) or "no injective binding matches",
+        json.dumps(actual, indent=1, sort_keys=True),
+    )
+
+
+def test_p05_capture_refs_of_a_positive_assessment_resolve_in_evidence_mode_only(driver, tmp_path):
+    """R7: the assessment's Pod/owner capture refs resolve here although no Service-level
+    DEPLOYED_AS makes them reachable for the legacy `get_evidence`."""
+    world.build(driver, tmp_path, CASES["P05"]["inputs"])
+    query = _ask(driver, K_REQUEST)
+    [locality] = query["data"]["localities"]
+    refs = sorted(
+        {ref for item in locality["assessments"] for ref in item["capture_evidence_refs"]}
+    )
+    snapshot_id = query["snapshot"]["snapshot_id"]
+
+    evidence = _ask(
+        driver,
+        {
+            "mode": "evidence",
+            "subject_service_id": "service:orders",
+            "snapshot_id": snapshot_id,
+            "refs": refs,
+        },
+    )
+    legacy = _service(driver).get_evidence(
+        EvidenceRequest(evidence_refs=refs, snapshot_id=snapshot_id)
+    )
+
+    _check(
+        "P05",
+        {1: query, 2: evidence},
+        {
+            "legacy get_evidence result": legacy.data is not None
+            and legacy.data.records == []
+            and legacy.data.missing_evidence_refs == refs
+        },
+    )
+
+
+class _NlProvider:
+    """A stub NL provider that proposes one fixed Cypher (as I2's isolation tests do)."""
+
+    def __init__(self, cypher: str):
+        self.cypher, self.composed = cypher, 0
+
+    def generate_cypher(self, *, question, schema_description):
+        return self.cypher
+
+    def compose_answer(self, *, question, cypher, rows):
+        self.composed += 1
+        return "answer"
+
+
+def test_p06_v2_stays_isolated_from_every_legacy_reader(driver, tmp_path):
+    case = CASES["P06"]
+    world.build(driver, tmp_path, case["inputs"])
+    v2_ids = sorted(item["id"] for item in case["inputs"]["v2"])
+    snapshot_id = _current_snapshot(driver)
+    service = _service(driver)
+    client = _rest_client(driver, service=service)
+
+    # Step 1: legacy get_evidence, POST /api/evidence/resolve and GET /api/evidence.
+    legacy = service.get_evidence(EvidenceRequest(evidence_refs=v2_ids, snapshot_id=snapshot_id))
+    resolved = client.post(
+        "/api/evidence/resolve", json={"evidence_refs": v2_ids, "snapshot_id": snapshot_id}
+    )
+    listed = client.get("/api/evidence", params={"snapshot_id": snapshot_id})
+    lookups = [
+        client.get(f"/api/evidence/{v2_id}", params={"snapshot_id": snapshot_id})
+        for v2_id in v2_ids
+    ]
+    assert resolved.status_code == 200 and listed.status_code == 200
+    # Step 2: an NL question naming the v2 ids is refused before any answer is composed.
+    named = ", ".join(f"'{v2_id}'" for v2_id in v2_ids)
+    provider = _NlProvider(
+        f"MATCH (n:ScopedObservedCallV2) WHERE n.id IN [{named}] RETURN n.id AS id"
+    )
+    nl = ArchitectureQuestionService(driver=driver, database=DATABASE, provider=provider)
+    with pytest.raises(CypherValidationError):
+        nl.ask("which scoped records exist for " + named + "?")
+    # Step 3: get_service_dependencies evidence refs.
+    [dependencies, *_] = _v0_5_answers(driver, snapshot_id, service=service)
+
+    _check(
+        "P06",
+        {},
+        {
+            # A resolve answer echoes the requested ids as missing; it must return no record.
+            "every legacy read": all(r.status_code == 404 for r in lookups)
+            and legacy.data is not None
+            and legacy.data.records == []
+            and resolved.json()["data"]["records"] == []
+            and not any(v2_id in listed.text for v2_id in v2_ids)
+            and provider.composed == 0,
+            "get_service_dependencies evidence_refs": not any(
+                v2_id in json.dumps(dependencies) for v2_id in v2_ids
+            ),
+        },
+    )
+
+
+def test_an_owner_capture_ref_resolves_only_for_its_own_caller(driver, tmp_path):
+    """D11 capture authority (b), beside X27's Pod case: P9's WORKLOAD_OWNS_POD evidence belongs to
+    `service:billing`'s v2 record, so `service:orders` gets NOT_FOUND for every ref of it and
+    `service:billing` resolves them."""
+    case = CASES["X27"]
+    prebound = world.build(driver, tmp_path, case["inputs"])
+    [p9] = [
+        pod
+        for capture in case["inputs"]["captures"]
+        for pod in capture["pods"]
+        if pod["name"].endswith("-p9")
+    ]
+    with driver.session(database=DATABASE) as session:
+        refs = session.run(
+            "MATCH (claim:InfrastructureClaim {kind: 'WORKLOAD_OWNS_POD'}) "
+            "MATCH (pc:InfrastructureContribution {entity_id: claim.object_id, "
+            "captured_resource_uid: $uid}) "
+            "MATCH (cc:InfrastructureClaimContribution {claim_id: claim.id}) "
+            "UNWIND cc.evidence_refs AS ref RETURN DISTINCT ref ORDER BY ref",
+            uid=p9["uid"],
+        ).value()
+    assert refs, "P9 has owner evidence"
+    snapshot_id = _current_snapshot(driver)
+
+    def resolve(subject: str) -> list[tuple[str, str | None]]:
+        answer = _ask(
+            driver,
+            {
+                "mode": "evidence",
+                "subject_service_id": subject,
+                "snapshot_id": snapshot_id,
+                "refs": refs,
+            },
+        )
+        return [(entry["status"], entry["ref_kind"]) for entry in answer["data"]["entries"]]
+
+    assert prebound["SOURCE:A"]
+    assert resolve("service:orders") == [("NOT_FOUND", None)] * len(refs)
+    # The claim's evidence also carries the Pod's own capture ref, which authority (a) labels
+    # POD_CAPTURE; the claim's other refs are OWNER_CAPTURE.
+    billing = resolve("service:billing")
+    assert {status for status, _kind in billing} == {"RESOLVED"}
+    assert "OWNER_CAPTURE" in {kind for _status, kind in billing}
+    assert {kind for _status, kind in billing} <= {"OWNER_CAPTURE", "POD_CAPTURE"}

@@ -260,7 +260,11 @@ def _store(session, record) -> None:
 
 def _read(session, request, **kwargs):
     return read_scoped_applicability(
-        session, request, coverage_qualification_enabled=False, **kwargs
+        session,
+        request,
+        coverage_qualification_enabled=False,
+        service_workload_mapping_document=None,
+        **kwargs,
     )
 
 

@@ -22,6 +22,7 @@ from app.architecture_intelligence.locality_contracts import (
 from app.architecture_intelligence.repository import (
     PROVIDES_FOR_OPERATIONS_QUERY,
     SOURCE_CAPTURES_QUERY,
+    read_evidence_rows,
     read_qualification_evidence_rows,
     read_stable_snapshot_from_session,
 )
@@ -39,15 +40,12 @@ from app.architecture_intelligence.scoped_applicability import (
     preflight,
 )
 from app.provenance.model import ScopedObservedCall
+from app.sources.service_workload_mapping import ServiceWorkloadMappingDocument
 
 # D3: fixed page size; an explicit truncation flag is returned whenever a scan stops early.
 DEFAULT_PAGE_SIZE = 500
 
-_READ_QUERY = (
-    "MATCH (v:ScopedObservedCallV2) "
-    "WHERE v.subject_id = $subject_id "
-    "AND ($object_id IS NULL OR v.object_id = $object_id) "
-    "AND ($after_id IS NULL OR v.id > $after_id) "
+_V2_FIELDS = (
     "RETURN v.id AS id, v.contract_version AS contract_version, v.source_type AS source_type, "
     "v.evidence_type AS evidence_type, v.relation_type AS relation_type, "
     "v.environment AS environment, v.bucket_utc_day AS bucket_utc_day, "
@@ -64,7 +62,12 @@ _READ_QUERY = (
     "v.key_rule_id AS key_rule_id, v.key_rule_version AS key_rule_version, "
     "v.normalization_rule_id AS normalization_rule_id, "
     "v.normalization_rule_version AS normalization_rule_version "
-    "ORDER BY v.id LIMIT $limit"
+)
+_READ_QUERY = (
+    "MATCH (v:ScopedObservedCallV2) "
+    "WHERE v.subject_id = $subject_id "
+    "AND ($object_id IS NULL OR v.object_id = $object_id) "
+    "AND ($after_id IS NULL OR v.id > $after_id) " + _V2_FIELDS + "ORDER BY v.id LIMIT $limit"
 )
 
 _DATETIME_FIELDS = ("first_seen", "last_seen")
@@ -103,14 +106,16 @@ def read_scoped_observed_calls(
             limit=limit + 1,
         )
     )
-    records = []
-    for row in rows[:limit]:
-        data = dict(row)
-        for field in _DATETIME_FIELDS:
-            # neo4j.time.DateTime -> datetime.datetime, as the v1 evidence reads do.
-            data[field] = data[field].to_native()
-        records.append(ScopedObservedCall(**data))
+    records = [_record(row) for row in rows[:limit]]
     return ScopedCallPage(records=tuple(records), truncated=len(rows) > limit)
+
+
+def _record(row: neo4j.Record) -> ScopedObservedCall:
+    data = dict(row)
+    for field in _DATETIME_FIELDS:
+        # neo4j.time.DateTime -> datetime.datetime, as the v1 evidence reads do.
+        data[field] = data[field].to_native()
+    return ScopedObservedCall(**data)
 
 
 # --- I2.3b: the fenced applicability read (decision record D13.6, D13.7) -------------------------
@@ -369,6 +374,7 @@ def read_scoped_applicability(
     request: LocalityRequest,
     *,
     coverage_qualification_enabled: bool,
+    service_workload_mapping_document: ServiceWorkloadMappingDocument | None,
     after_id: str | None = None,
     page_size: int = DEFAULT_PAGE_SIZE,
     max_attempts: int = 3,
@@ -377,7 +383,11 @@ def read_scoped_applicability(
     the committed source captures and their Pods/owners, and the declared `CALLS` evidence of the
     page's Operations inside one stable-snapshot attempt, then evaluates the page (D13.7, D14.4).
     A malformed window raises `ValueError` before anything is read; a phase-1 refusal reads no
-    candidates. `SnapshotUnstable` propagates."""
+    candidates. `SnapshotUnstable` propagates.
+
+    `service_workload_mapping_document` is required, not defaulted: it enters the canonical snapshot
+    state, so the caller must pass the same configured artifact every v0.5 read passes, or this
+    read's `snapshot_id` would differ from theirs (one canonical snapshot, I2 §11; I3.3a)."""
     if not 1 <= page_size <= DEFAULT_PAGE_SIZE:
         raise ValueError(f"page_size must be between 1 and {DEFAULT_PAGE_SIZE}")
     preflight(request)
@@ -385,6 +395,7 @@ def read_scoped_applicability(
     snapshot = read_stable_snapshot_from_session(
         session,
         coverage_qualification_enabled=coverage_qualification_enabled,
+        service_workload_mapping_document=service_workload_mapping_document,
         read_extra=lambda runner: read_applicability_page(
             runner, request, after_id=after_id, page_size_for=lambda _count: page_size
         ),
@@ -437,13 +448,15 @@ def read_locality_inventory(
     request: LocalityRequest,
     *,
     coverage_qualification_enabled: bool,
+    service_workload_mapping_document: ServiceWorkloadMappingDocument | None,
     after_id: str | None,
     read_candidates: bool,
     max_attempts: int = 3,
 ) -> LocalityInventoryRead:
     """The candidate page (bounded by D4's preflight) and the `PROVIDES` rows of its Operations
     (D8), read in one stable-snapshot attempt. With `read_candidates=False` only the snapshot is
-    fenced. `SnapshotUnstable` propagates."""
+    fenced. `SnapshotUnstable` propagates. `service_workload_mapping_document` is required for the
+    reason `read_scoped_applicability` gives."""
     no_owners = ProviderOwnerRows(provides=(), evidence_rows={})
 
     def read_extra(runner: neo4j.Session) -> tuple[ApplicabilityPage | None, ProviderOwnerRows]:
@@ -460,6 +473,7 @@ def read_locality_inventory(
     snapshot = read_stable_snapshot_from_session(
         session,
         coverage_qualification_enabled=coverage_qualification_enabled,
+        service_workload_mapping_document=service_workload_mapping_document,
         read_extra=read_extra,
         max_attempts=max_attempts,
     )
@@ -469,4 +483,79 @@ def read_locality_inventory(
         model_revision=snapshot.model_revision,
         page=page,
         owners=owners,
+    )
+
+
+# --- I3.3a: the same-snapshot scoped resolver read (I3 decision record D11) ----------------------
+
+_V2_BY_ID_QUERY = "MATCH (v:ScopedObservedCallV2) WHERE v.id IN $ids " + _V2_FIELDS
+
+# D11 capture authority (a): a captured Pod contribution carrying the ref, whose captured UID is
+# the caller Pod of a v2 record of this subject (and Operation). It starts from the refs, never
+# from the subject's v2 records, so its result is bounded by the at most 20 refs.
+_POD_CAPTURE_AUTHORITY_QUERY = (
+    "MATCH (c:InfrastructureContribution) "
+    "WHERE c.captured_resource_uid IS NOT NULL "
+    "AND any(ref IN coalesce(c.evidence_refs, []) WHERE ref IN $refs) "
+    "MATCH (e:InfrastructureEntity {id: c.entity_id}) WHERE e.entity_kind = 'KUBERNETES_POD' "
+    "AND EXISTS { MATCH (v:ScopedObservedCallV2) WHERE v.subject_id = $subject_id "
+    "AND ($object_id IS NULL OR v.object_id = $object_id) "
+    "AND v.caller_pod_uid = c.captured_resource_uid } "
+    "UNWIND c.evidence_refs AS ref WITH ref WHERE ref IN $refs RETURN DISTINCT ref"
+)
+# D11 capture authority (b): a WORKLOAD_OWNS_POD claim contribution carrying the ref, whose Pod is
+# such a Pod (one of its captured contributions has a caller Pod UID of a matching v2 record).
+_OWNER_CAPTURE_AUTHORITY_QUERY = (
+    "MATCH (cc:InfrastructureClaimContribution) "
+    "WHERE any(ref IN coalesce(cc.evidence_refs, []) WHERE ref IN $refs) "
+    "MATCH (claim:InfrastructureClaim {id: cc.claim_id, kind: 'WORKLOAD_OWNS_POD'}) "
+    "WHERE EXISTS { MATCH (pc:InfrastructureContribution {entity_id: claim.object_id}) "
+    "WHERE pc.captured_resource_uid IS NOT NULL "
+    "MATCH (v:ScopedObservedCallV2) WHERE v.subject_id = $subject_id "
+    "AND ($object_id IS NULL OR v.object_id = $object_id) "
+    "AND v.caller_pod_uid = pc.captured_resource_uid } "
+    "UNWIND cc.evidence_refs AS ref WITH ref WHERE ref IN $refs RETURN DISTINCT ref"
+)
+
+
+@dataclass(frozen=True)
+class ScopedEvidenceRows:
+    """What the D11 resolver read under one fence. `v2` holds only the records whose subject (and
+    Operation) the request authorizes. `pod_refs`/`owner_refs` are the capture refs the authority
+    admits, and `evidence_rows` is the `read_evidence_rows` result for exactly those refs."""
+
+    v2: dict[str, ScopedObservedCall]
+    pod_refs: frozenset[str]
+    owner_refs: frozenset[str]
+    evidence_rows: dict
+
+
+def read_scoped_evidence(
+    runner: neo4j.Session,
+    *,
+    subject_id: str,
+    object_id: str | None,
+    v2_refs: Sequence[str],
+    capture_refs: Sequence[str],
+) -> ScopedEvidenceRows:
+    """The D11 reads for one evidence-mode request. Run it inside a stable-snapshot `read_extra`.
+    A v2 record is returned only for its own caller (and Operation). A capture ref is admitted only
+    through the D13.6 Pod/owner relations of such a record, never because an answer selected it,
+    so nothing here recomputes a pair, an owner or a claim."""
+    v2 = {
+        record.id: record
+        for record in (_record(row) for row in runner.run(_V2_BY_ID_QUERY, ids=sorted(v2_refs)))
+        if record.subject_id == subject_id and (object_id is None or record.object_id == object_id)
+    }
+    params = {"refs": sorted(capture_refs), "subject_id": subject_id, "object_id": object_id}
+    pod_refs = frozenset(row["ref"] for row in runner.run(_POD_CAPTURE_AUTHORITY_QUERY, **params))
+    owner_refs = frozenset(
+        row["ref"] for row in runner.run(_OWNER_CAPTURE_AUTHORITY_QUERY, **params)
+    )
+    authorized = sorted(pod_refs | owner_refs)
+    evidence_rows = read_evidence_rows(
+        runner, evidence_ids=authorized, reachable_kubernetes_evidence_ids=frozenset(authorized)
+    )
+    return ScopedEvidenceRows(
+        v2=v2, pod_refs=pod_refs, owner_refs=owner_refs, evidence_rows=evidence_rows
     )

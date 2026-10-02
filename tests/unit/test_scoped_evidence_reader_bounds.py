@@ -64,5 +64,6 @@ def test_an_out_of_bound_applicability_page_size_is_rejected_before_any_read(pag
             _ExplodingRunner(),  # pyright: ignore[reportArgumentType]
             request,
             coverage_qualification_enabled=False,
+            service_workload_mapping_document=None,
             page_size=page_size,
         )

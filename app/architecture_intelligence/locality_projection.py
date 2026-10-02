@@ -11,6 +11,7 @@ the caller hands it one fenced read.
 """
 
 import dataclasses
+import re
 from collections import defaultdict
 from collections.abc import Sequence
 from dataclasses import dataclass
@@ -18,6 +19,7 @@ from dataclasses import dataclass
 from app.architecture_intelligence.canonical_json import canonical_digest
 from app.architecture_intelligence.contracts import Outcome, Producer, SnapshotRef
 from app.architecture_intelligence.dependency_projection import group_evidenced_rows
+from app.architecture_intelligence.evidence_projection import project_evidence
 from app.architecture_intelligence.local_assessment import (
     CandidateLimitation,
     LocalAssessmentResult,
@@ -31,6 +33,7 @@ from app.architecture_intelligence.locality_contracts import (
     MAX_LOCALITIES_PER_PAGE,
     MAX_MEMBERSHIPS_PER_PAGE,
     PAIR_BOUND,
+    V2_EVIDENCE_ID_PATTERN,
     AdmissionBasis,
     CandidateEntry,
     CandidateLimitationCode,
@@ -42,14 +45,19 @@ from app.architecture_intelligence.locality_contracts import (
     ComparisonSide,
     Completeness,
     EvaluatedSource,
+    EvidenceEntry,
+    EvidenceRefKind,
+    EvidenceRefStatus,
     Inventory,
     InventoryBounds,
     LocalDisposition,
     LocalityAnswer,
     LocalityCursor,
     LocalityEntry,
+    LocalityEvidenceRequest,
     LocalityLimitation,
     LocalityLimitationCode,
+    LocalityMode,
     LocalityQueryRequest,
     LocalityRequestContext,
     LocalityWorkload,
@@ -62,6 +70,8 @@ from app.architecture_intelligence.locality_contracts import (
     ProviderGroup,
     ProviderOwnerReason,
     RuleRef,
+    ScopedLocalityEvidenceData,
+    ScopedV2Record,
     ScopeEvaluation,
     SelectedCaptureRef,
     SelectedScope,
@@ -85,7 +95,9 @@ from app.architecture_intelligence.scoped_applicability import (
 from app.architecture_intelligence.scoped_evidence_repository import (
     ProviderOwnerRows,
     ScopedApplicabilityRead,
+    ScopedEvidenceRows,
 )
+from app.provenance.model import ScopedObservedCall
 
 _IdentityKey = tuple[str, str, str, str]
 # A comparison membership: (provider Service id, or "" for an unresolved owner; Operation id).
@@ -166,13 +178,14 @@ def refusal_answer(
     *,
     reasons: Sequence[str] = (),
     message: str | None = None,
+    mode: LocalityMode = "query",
 ) -> LocalityAnswer:
     """D9: a refusal evaluated nothing, so `data` is null and it carries exactly one code."""
     return LocalityAnswer(
         schema_version=LOCALITY_SCHEMA_VERSION,
         producer=producer,
         tool=LOCALITY_TOOL_NAME,
-        mode="query",
+        mode=mode,
         outcome=Outcome.NOT_ANSWERED,
         snapshot=snapshot,
         data=None,
@@ -745,10 +758,132 @@ def _limitation_codes(
     return codes
 
 
+# --- The scoped resolver (D11, D16.1, D16.7) ---------------------------------------------------
+
+_V2_REF = re.compile(V2_EVIDENCE_ID_PATTERN)
+_EVIDENCE_MESSAGE = (
+    "At least one requested ref did not resolve for this caller at this snapshot. An unresolved "
+    "ref is not described further."
+)
+
+
+def is_v2_ref(ref: str) -> bool:
+    """D11/D16.7: a ref matching the v2 id pattern can only resolve as `SCOPED_V2`."""
+    return _V2_REF.fullmatch(ref) is not None
+
+
+def _scoped_record(record: ScopedObservedCall) -> ScopedV2Record:
+    """D11: exactly the admitted public fields; never a Resource, host, IP or Workload."""
+    return ScopedV2Record(
+        id=record.id,
+        subject_id=record.subject_id,
+        object_id=record.object_id,
+        environment=record.environment,
+        bucket_utc_day=record.bucket_utc_day,
+        caller_cluster_uid=record.caller_cluster_uid,
+        caller_pod_uid=record.caller_pod_uid,
+        first_seen=record.first_seen,
+        last_seen=record.last_seen,
+        observation_count=record.observation_count,
+        correlation_mode=record.correlation_mode,  # pyright: ignore[reportArgumentType]
+        sample_trace_ids=sorted(set(record.sample_trace_ids)),
+        key_rule_id=record.key_rule_id,  # pyright: ignore[reportArgumentType]
+        key_rule_version=record.key_rule_version,  # pyright: ignore[reportArgumentType]
+        normalization_rule_id=record.normalization_rule_id,  # pyright: ignore[reportArgumentType]
+        normalization_rule_version=record.normalization_rule_version,  # pyright: ignore[reportArgumentType]
+    )
+
+
+def _not_found(ref: str) -> EvidenceEntry:
+    return EvidenceEntry(
+        ref=ref,
+        status=EvidenceRefStatus.NOT_FOUND,
+        ref_kind=None,
+        scoped_record=None,
+        capture_record=None,
+    )
+
+
+def project_scoped_evidence(
+    request: LocalityEvidenceRequest,
+    rows: ScopedEvidenceRows,
+    *,
+    snapshot: SnapshotRef,
+    producer: Producer,
+) -> LocalityAnswer:
+    """The evaluated `mode: "evidence"` answer (D11). A ref that fails its rule is `NOT_FOUND`
+    with no detail. The outcome follows D16.1: `ANSWERED` if every ref resolved, `PARTIAL` if
+    some did, `NOT_ANSWERED` if none did, the last two with `INSUFFICIENT_EVIDENCE`."""
+    authorized = sorted(rows.pod_refs | rows.owner_refs)
+    records = {
+        record.id: record
+        for record in project_evidence(rows.evidence_rows, requested_ids=authorized).records
+        if record.source_type.value == "KUBERNETES"
+    }
+    entries = []
+    for ref in request.refs:
+        if is_v2_ref(ref):
+            record = rows.v2.get(ref)
+            entries.append(
+                EvidenceEntry(
+                    ref=ref,
+                    status=EvidenceRefStatus.RESOLVED,
+                    ref_kind=EvidenceRefKind.SCOPED_V2,
+                    scoped_record=_scoped_record(record),
+                    capture_record=None,
+                )
+                if record is not None
+                else _not_found(ref)
+            )
+        elif ref in records:
+            entries.append(
+                EvidenceEntry(
+                    ref=ref,
+                    status=EvidenceRefStatus.RESOLVED,
+                    ref_kind=(
+                        EvidenceRefKind.POD_CAPTURE
+                        if ref in rows.pod_refs
+                        else EvidenceRefKind.OWNER_CAPTURE
+                    ),
+                    scoped_record=None,
+                    capture_record=records[ref],
+                )
+            )
+        else:
+            entries.append(_not_found(ref))
+
+    resolved = sum(entry.status is EvidenceRefStatus.RESOLVED for entry in entries)
+    complete = resolved == len(entries)
+    return LocalityAnswer(
+        schema_version=LOCALITY_SCHEMA_VERSION,
+        producer=producer,
+        tool=LOCALITY_TOOL_NAME,
+        mode="evidence",
+        outcome=(
+            Outcome.ANSWERED if complete else Outcome.PARTIAL if resolved else Outcome.NOT_ANSWERED
+        ),
+        snapshot=snapshot,
+        data=ScopedLocalityEvidenceData(
+            subject_service_id=request.subject_service_id,
+            object_operation_id=request.object_operation_id,
+            entries=entries,
+        ),
+        limitations=(
+            []
+            if complete
+            else [
+                limitation(LocalityLimitationCode.INSUFFICIENT_EVIDENCE, message=_EVIDENCE_MESSAGE)
+            ]
+        ),
+    )
+
+
 __all__ = [
     "internal_request",
+    "is_v2_ref",
     "limitation",
     "project_locality_answer",
+    "project_scoped_evidence",
     "query_digest",
     "refusal_answer",
     "result_limit_message",
