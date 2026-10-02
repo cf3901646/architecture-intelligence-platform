@@ -168,6 +168,29 @@ def _replay(
     return service.assess_local_calls(request), v1, v2
 
 
+# `_replay` starts from an empty graph, so its result depends only on its arguments: each distinct
+# replay runs once per session. Only tests that read the returned values may reuse it - a test that
+# reads the graph itself loads the state it needs (see `test_locality_query.py`).
+_RESULTS: dict[tuple, tuple] = {}
+
+
+def _replay_and_remember(
+    driver, capture: str | None, *, scoped: bool = True, recording: Path = FIXTURE / "otlp.jsonl"
+):
+    result = _replay(driver, capture, scoped=scoped, recording=recording)
+    _RESULTS[(capture, scoped, recording)] = result
+    return result
+
+
+def _replayed(
+    driver, capture: str | None, *, scoped: bool = True, recording: Path = FIXTURE / "otlp.jsonl"
+):
+    key = (capture, scoped, recording)
+    if key not in _RESULTS:
+        _replay_and_remember(driver, capture, scoped=scoped, recording=recording)
+    return _RESULTS[key]
+
+
 def _by_workload(result):
     return {
         (a.caller_workload.name, a.object_operation_id): a.qualification for a in result.assertions
@@ -177,7 +200,7 @@ def _by_workload(result):
 def test_c1_yields_the_two_workload_answer_and_every_call_keeps_its_client_identity(driver):
     """E1-E3 and E6; gate 4: every recorded CLIENT span, whatever its arrival order relative to
     its SERVER (in-batch, CLIENT-first, SERVER-first), is counted in its own Pod's v2 record."""
-    result, v1, v2 = _replay(driver, "c1")
+    result, v1, v2 = _replayed(driver, "c1")
     assert _by_workload(result) == {("orders", O1): CONFIRMED, ("orders-canary", O2): OBSERVED_ONLY}
     assert result.candidate_limitations == ()
     assert {a.caller_workload.uid for a in result.assertions} and len(
@@ -193,8 +216,8 @@ def test_c1_yields_the_two_workload_answer_and_every_call_keeps_its_client_ident
 
 def test_c2_keeps_p1_s_record_and_unresolves_it(driver):
     """E4, E5, E7: P1's v2 record is retained and still P1's, but its Workload is UNRESOLVED."""
-    c1, _, _ = _replay(driver, "c1")
-    result, _, v2 = _replay(driver, "c2")
+    c1, _, _ = _replayed(driver, "c1")
+    result, _, v2 = _replayed(driver, "c2")
     assert _by_workload(result) == {("orders-canary", O2): OBSERVED_ONLY}
     [limitation] = result.candidate_limitations
     assert limitation.disposition is LocalityDisposition.UNRESOLVED
@@ -205,8 +228,8 @@ def test_c2_keeps_p1_s_record_and_unresolves_it(driver):
 
 def test_v1_is_unchanged_by_scoped_evidence(driver):
     """E6: the flag-off replay yields exactly the same v1 counts."""
-    _, v1_on, _ = _replay(driver, "c1")
-    _, v1_off, v2_off = _replay(driver, "c1", scoped=False)
+    _, v1_on, _ = _replayed(driver, "c1")
+    _, v1_off, v2_off = _replayed(driver, "c1", scoped=False)
     assert v1_off == v1_on
     assert v2_off == {}
 
@@ -224,7 +247,7 @@ def test_attempt_1_keeps_client_identity_in_the_client_first_order(driver):
     )
     analysis = json.loads((attempt1 / "analysis.json").read_text(encoding="utf-8"))
     assert analysis["arrival_orders"]["client_first"] > 0
-    _, v1, v2 = _replay(driver, None, recording=attempt1 / "otlp.jsonl")
+    _, v1, v2 = _replayed(driver, None, recording=attempt1 / "otlp.jsonl")
     clients = analysis["client_spans"]
     assert v2 == {
         (ids["P1_UID"], O1): clients["P1 -> pricing"],

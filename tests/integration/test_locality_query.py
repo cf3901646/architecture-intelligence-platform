@@ -8,6 +8,8 @@ rehearsal's own pre-committed `expected.md` (W1 -> O1 `CONFIRMED`, W2 -> O2 `OBS
 
 import json
 
+import pytest
+
 from app.architecture_intelligence.contracts import Outcome
 from app.architecture_intelligence.locality_contracts import (
     LocalityAnswer,
@@ -23,9 +25,23 @@ from tests.integration.test_locality_rehearsal_replay import (
     O1,
     O2,
     PRODUCER,
-    _replay,
+    _replay_and_remember,
     pytestmark,  # noqa: F401 - skip with the fixture, as the I2 replay does
 )
+
+
+@pytest.fixture(scope="module")
+def rehearsal(driver):
+    """Puts the graph in a replayed state, replaying only when this module last loaded another one:
+    every test here only reads the graph after its replay (the first asserts it)."""
+    loaded = []
+
+    def load(capture: str, *, scoped: bool = True) -> None:
+        if loaded != [(capture, scoped)]:
+            _replay_and_remember(driver, capture, scoped=scoped)
+            loaded[:] = [(capture, scoped)]
+
+    return load
 
 
 def _service(driver) -> ArchitectureIntelligenceService:
@@ -57,8 +73,8 @@ def _graph_state(driver) -> tuple[int, int, int]:
         return read_revision(session), nodes, relations
 
 
-def test_c1_answers_where_the_two_workloads_call_without_writing(driver):
-    _replay(driver, "c1")
+def test_c1_answers_where_the_two_workloads_call_without_writing(driver, rehearsal):
+    rehearsal("c1")
     before = _graph_state(driver)
 
     answer = _service(driver).get_service_dependencies_by_locality(_query())
@@ -95,12 +111,12 @@ def test_c1_answers_where_the_two_workloads_call_without_writing(driver):
     LocalityAnswer.model_validate(json.loads(answer.model_dump_json()))
 
 
-def test_after_c2_p1_s_record_is_unresolved_and_the_c1_snapshot_is_refused(driver):
-    _replay(driver, "c1")
+def test_after_c2_p1_s_record_is_unresolved_and_the_c1_snapshot_is_refused(driver, rehearsal):
+    rehearsal("c1")
     c1 = _service(driver).get_service_dependencies_by_locality(_query())
     assert c1.snapshot is not None
 
-    _replay(driver, "c2")
+    rehearsal("c2")
     answer = _service(driver).get_service_dependencies_by_locality(_query())
     data = _data(answer)
 
@@ -120,8 +136,8 @@ def test_after_c2_p1_s_record_is_unresolved_and_the_c1_snapshot_is_refused(drive
     assert stale.data is None and stale.snapshot == answer.snapshot
 
 
-def test_without_v2_the_answer_is_insufficient_evidence_not_absence(driver):
-    _replay(driver, "c1", scoped=False)
+def test_without_v2_the_answer_is_insufficient_evidence_not_absence(driver, rehearsal):
+    rehearsal("c1", scoped=False)
 
     answer = _service(driver).get_service_dependencies_by_locality(_query())
 

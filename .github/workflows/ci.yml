@@ -1,8 +1,9 @@
 name: CI
 
 # H5 spec §26: checkout -> Python setup -> {dependency install, ruff check, ruff format --check,
-# unit tests, integration tests}. The integration baseline is split across two required jobs so the
-# Compose demo E2E does not extend the core integration critical path.
+# unit tests, integration tests}. The integration baseline is split across required jobs so the
+# Compose demo E2E does not extend the core integration critical path, and the core integration
+# tests themselves run as two parallel shards.
 on:
   push:
   pull_request:
@@ -58,8 +59,22 @@ jobs:
         run: uv run pytest tests/unit
 
   integration-core:
-    name: integration-core
+    # Two parallel shards, each with its own Neo4j container. `heavy` names the slowest modules;
+    # `rest` runs everything else, so a new module needs no entry here.
+    name: integration-core (${{ matrix.shard }})
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [heavy, rest]
+    env:
+      HEAVY_MODULES: >-
+        tests/integration/test_locality_rehearsal_replay.py
+        tests/integration/test_locality_query.py
+        tests/integration/test_evaluation_architecture_answers.py
+        tests/integration/test_i4_pubsub_qualification.py
+        tests/integration/test_adapter.py
+        tests/integration/test_architecture_intelligence_service.py
     steps:
       - name: Checkout
         uses: actions/checkout@v7.0.1
@@ -74,7 +89,17 @@ jobs:
 
       # Testcontainers-backed - needs Docker, which is preinstalled on ubuntu-latest runners.
       - name: Core integration tests
-        run: uv run pytest tests/integration -m "not demo_e2e" --durations=25
+        env:
+          SHARD: ${{ matrix.shard }}
+        run: |
+          if [ "$SHARD" = heavy ]; then
+            selection=$HEAVY_MODULES
+          else
+            selection="tests/integration $(printf -- '--ignore=%s ' $HEAVY_MODULES)"
+          fi
+          # Unquoted on purpose: word-splits into the module paths / --ignore options.
+          # shellcheck disable=SC2086
+          uv run pytest $selection -m "not demo_e2e" --durations=25
 
   demo-e2e:
     name: demo-e2e
