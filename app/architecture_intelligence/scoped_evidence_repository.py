@@ -15,6 +15,10 @@ from dataclasses import dataclass
 
 import neo4j
 
+from app.architecture_intelligence.locality_contracts import (
+    CAPTURE_SOURCE_BOUND,
+    candidate_page_size,
+)
 from app.architecture_intelligence.repository import (
     PROVIDES_FOR_OPERATIONS_QUERY,
     SOURCE_CAPTURES_QUERY,
@@ -393,4 +397,76 @@ def read_scoped_applicability(
         model_revision=snapshot.model_revision,
         result=page.result,
         declared=page.declared,
+    )
+
+
+# --- I3.2: the fenced locality read (I3 decision record D4, D6, D8, D17) -------------------------
+
+
+def locality_page_size(considered_sources: int) -> int | None:
+    """I3 D4 step 2: `None` (refuse before reading any candidate, D6) beyond the capture-source
+    bound, else `k = min(500, ⌊2000 / S⌋)`."""
+    if considered_sources > CAPTURE_SOURCE_BOUND:
+        return None
+    return candidate_page_size(considered_sources)
+
+
+@dataclass(frozen=True)
+class LocalityInventoryRead:
+    """One stable-snapshot attempt for the locality answer. `page` is `None` when the caller asked
+    for the snapshot only (a refusal decided before the read, D17.1)."""
+
+    snapshot_id: str
+    model_revision: str
+    page: ApplicabilityPage | None
+    owners: ProviderOwnerRows
+
+    def applicability(self) -> ScopedApplicabilityRead:
+        """The read in the shape I2's pure `assess` takes."""
+        assert self.page is not None and self.page.result is not None
+        return ScopedApplicabilityRead(
+            snapshot_id=self.snapshot_id,
+            model_revision=self.model_revision,
+            result=self.page.result,
+            declared=self.page.declared,
+        )
+
+
+def read_locality_inventory(
+    session: neo4j.Session,
+    request: LocalityRequest,
+    *,
+    coverage_qualification_enabled: bool,
+    after_id: str | None,
+    read_candidates: bool,
+    max_attempts: int = 3,
+) -> LocalityInventoryRead:
+    """The candidate page (bounded by D4's preflight) and the `PROVIDES` rows of its Operations
+    (D8), read in one stable-snapshot attempt. With `read_candidates=False` only the snapshot is
+    fenced. `SnapshotUnstable` propagates."""
+    no_owners = ProviderOwnerRows(provides=(), evidence_rows={})
+
+    def read_extra(runner: neo4j.Session) -> tuple[ApplicabilityPage | None, ProviderOwnerRows]:
+        if not read_candidates:
+            return None, no_owners
+        page = read_applicability_page(
+            runner, request, after_id=after_id, page_size_for=locality_page_size
+        )
+        if page.result is None:
+            return page, no_owners
+        operations = [candidate.record.object_id for candidate in page.result.candidates]
+        return page, read_provider_owners(runner, operation_ids=operations)
+
+    snapshot = read_stable_snapshot_from_session(
+        session,
+        coverage_qualification_enabled=coverage_qualification_enabled,
+        read_extra=read_extra,
+        max_attempts=max_attempts,
+    )
+    page, owners = snapshot.extra
+    return LocalityInventoryRead(
+        snapshot_id=snapshot.snapshot_id,
+        model_revision=snapshot.model_revision,
+        page=page,
+        owners=owners,
     )

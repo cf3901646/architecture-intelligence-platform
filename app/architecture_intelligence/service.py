@@ -57,6 +57,19 @@ from app.architecture_intelligence.evidence_projection import (
     project_evidence,
 )
 from app.architecture_intelligence.local_assessment import LocalAssessmentResult, assess
+from app.architecture_intelligence.locality_contracts import (
+    LocalityAnswer,
+    LocalityLimitationCode,
+    LocalityQueryRequest,
+    decode_cursor,
+)
+from app.architecture_intelligence.locality_projection import (
+    internal_request,
+    project_locality_answer,
+    query_digest,
+    refusal_answer,
+    result_limit_message,
+)
 from app.architecture_intelligence.observation_context import build_complete_observation_context_ref
 from app.architecture_intelligence.repository import (
     SnapshotUnstable,
@@ -74,9 +87,14 @@ from app.architecture_intelligence.request import (
     ObservationContextInput,
     ServiceDependenciesRequest,
 )
-from app.architecture_intelligence.scoped_applicability import LocalityRequest
+from app.architecture_intelligence.scoped_applicability import (
+    LocalityRequest,
+    RequestRefusal,
+    preflight,
+)
 from app.architecture_intelligence.scoped_evidence_repository import (
     DEFAULT_PAGE_SIZE,
+    read_locality_inventory,
     read_scoped_applicability,
 )
 from app.graph.repository import open_session
@@ -784,3 +802,59 @@ class ArchitectureIntelligenceService:
                 page_size=page_size,
             )
         return assess(read, request)
+
+    def get_service_dependencies_by_locality(self, request: LocalityQueryRequest) -> LocalityAnswer:
+        """v0.6.0 I3.2 - the `mode: "query"` locality answer (I3 spec §5-§11; decision record D3-D10,
+        D16, D17): the bounded evaluated inventory of the caller's v2 candidates, its positive
+        caller-Workload localities with their provider groups, and the optional selection and
+        comparison, all from one stable snapshot. Read-only.
+
+        Refusals follow D17.1's precedence: an unsupported request and a cursor issued for another
+        query are decided before the read (which then fences only the snapshot), a stale or unstable
+        snapshot after it, and the capture-source bound (D6) inside it, before any candidate."""
+        locality = internal_request(request)
+        cursor = decode_cursor(request.cursor) if request.cursor is not None else None
+        checked = preflight(locality)
+        early: tuple[LocalityLimitationCode, tuple[str, ...]] | None = None
+        if isinstance(checked, RequestRefusal):
+            early = (LocalityLimitationCode.UNSUPPORTED_REQUEST, checked.reasons)
+        elif cursor is not None and cursor.query_digest != query_digest(request):
+            early = (LocalityLimitationCode.CURSOR_QUERY_MISMATCH, ())
+
+        try:
+            with open_session(self._driver, database=self._database, read_only=True) as session:
+                read = read_locality_inventory(
+                    session,
+                    locality,
+                    coverage_qualification_enabled=self._coverage_qualification_enabled,
+                    after_id=cursor.after_id if cursor is not None else None,
+                    read_candidates=early is None,
+                )
+        except SnapshotUnstable:
+            return refusal_answer(
+                self._producer, None, LocalityLimitationCode.SNAPSHOT_NOT_AVAILABLE
+            )
+        snapshot = SnapshotRef(snapshot_id=read.snapshot_id, model_revision=read.model_revision)
+        if early is not None:
+            code, reasons = early
+            return refusal_answer(self._producer, snapshot, code, reasons=reasons)
+        asserted = {request.snapshot_id, cursor.snapshot_id if cursor is not None else None}
+        if asserted - {None, read.snapshot_id}:
+            return refusal_answer(
+                self._producer, snapshot, LocalityLimitationCode.SNAPSHOT_NOT_AVAILABLE
+            )
+        assert read.page is not None
+        if read.page.result is None:
+            return refusal_answer(
+                self._producer,
+                snapshot,
+                LocalityLimitationCode.RESULT_LIMIT_EXCEEDED,
+                message=result_limit_message(read.page.considered_source_count),
+            )
+        return project_locality_answer(
+            request,
+            read.applicability(),
+            read.owners,
+            considered_sources=read.page.considered_source_count,
+            producer=self._producer,
+        )
