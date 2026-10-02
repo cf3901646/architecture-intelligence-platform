@@ -68,9 +68,11 @@ jobs:
       matrix:
         shard: [heavy, rest]
     env:
+      # Order matters: pytest runs these in the listed order, and test_locality_query.py's replays
+      # are only reused by test_locality_rehearsal_replay.py when they run first.
       HEAVY_MODULES: >-
-        tests/integration/test_locality_rehearsal_replay.py
         tests/integration/test_locality_query.py
+        tests/integration/test_locality_rehearsal_replay.py
         tests/integration/test_evaluation_architecture_answers.py
         tests/integration/test_i4_pubsub_qualification.py
         tests/integration/test_adapter.py
