@@ -180,6 +180,7 @@ def test_independent_client_completes_the_real_dependency_to_evidence_golden_pat
         "get_architecture_drift",
         "get_evidence",
         "get_service_dependencies",
+        "get_service_dependencies_by_locality",
     ]
     # The client validates against the schemas the server actually *advertises* (spec §17 scenario
     # 21), not only the repository-local frozen copies - a missing, incompatible or mis-wired
@@ -271,6 +272,7 @@ def test_independent_client_completes_the_real_drift_to_evidence_golden_path(
         "get_architecture_drift",
         "get_evidence",
         "get_service_dependencies",
+        "get_service_dependencies_by_locality",
     ]
     advertised_output_schemas = {tool["name"]: tool["outputSchema"] for tool in tools}
 
